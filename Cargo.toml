@@ -1,0 +1,11 @@
+[package]
+name = "libcore_cheri"
+version = "0.1.0"
+authors = ["Nicholas Sim <nicholassimws@gmail.com>"]
+
+[lib]
+name = "libcore_cheri"
+path = "lib.rs"
+
+[features]
+panic_immediate_abort = []
