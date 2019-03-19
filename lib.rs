@@ -11,9 +11,15 @@
 // This library, libcore_cheri, is intended to contain a minimal set
 // of Rust libcore code to work with CHERI temporarily.
 
+#![no_core]
+
 #![feature(no_core)]
 #![feature(lang_items)]
 #![feature(optin_builtin_traits)]
-#![no_core]
+#![feature(rustc_attrs)]
+
+#[macro_use]
+mod internal_macros;
 
 pub mod marker;
+pub mod ops;
