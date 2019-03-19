@@ -13,6 +13,7 @@
 
 #![no_core]
 
+#![feature(never_type)]
 #![feature(no_core)]
 #![feature(lang_items)]
 #![feature(optin_builtin_traits)]
@@ -21,5 +22,6 @@
 #[macro_use]
 mod internal_macros;
 
+/* Core language traits */
 pub mod marker;
 pub mod ops;
