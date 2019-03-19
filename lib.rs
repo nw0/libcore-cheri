@@ -13,6 +13,8 @@
 
 #![no_core]
 
+#![feature(arbitrary_self_types)]
+#![feature(associated_type_defaults)]
 #![feature(never_type)]
 #![feature(no_core)]
 #![feature(lang_items)]
