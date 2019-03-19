@@ -16,7 +16,7 @@ macro_rules! add_impl {
             fn add(self, other: $t) -> $t { self + other }
         }
 
-//         forward_ref_binop! { impl Add, add for $t, $t }
+        forward_ref_binop! { impl Add, add for $t, $t }
     )*)
 }
 
