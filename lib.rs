@@ -72,6 +72,9 @@
 #![feature(non_exhaustive)]
 #![feature(structural_match)]
 
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
 #[prelude_import]
 #[allow(unused)]
 use prelude::*;

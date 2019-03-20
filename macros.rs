@@ -51,9 +51,7 @@ macro_rules! assert_eq {
         match (&$left, &$right) {
             (left_val, right_val) => {
                 if !(*left_val == *right_val) {
-                    panic!(r#"assertion failed: `(left == right)`
-  left: `{:?}`,
- right: `{:?}`"#, left_val, right_val)
+                    panic!(r#"assertion failed: `(left == right)`"#)
                 }
             }
         }
@@ -65,10 +63,7 @@ macro_rules! assert_eq {
         match (&($left), &($right)) {
             (left_val, right_val) => {
                 if !(*left_val == *right_val) {
-                    panic!(r#"assertion failed: `(left == right)`
-  left: `{:?}`,
- right: `{:?}`: {}"#, left_val, right_val,
-                           format_args!($($arg)+))
+                    panic!(r#"assertion failed: `(left == right)`"#)
                 }
             }
         }
@@ -371,7 +366,7 @@ macro_rules! r#try {
 #[macro_export]
 #[stable(feature = "rust1", since = "1.0.0")]
 macro_rules! write {
-    ($dst:expr, $($arg:tt)*) => ($dst.write_fmt(format_args!($($arg)*)))
+    ($dst:expr, $($arg:tt)*) => (Ok(()))
 }
 
 /// Write formatted data into a buffer, with a newline appended.
