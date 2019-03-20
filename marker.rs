@@ -5,15 +5,23 @@
 #[fundamental]
 pub trait Sized {}
 
-// This trait is also Clone
 #[stable(feature = "rust1", since = "1.0.0")]
 #[lang = "copy"]
-pub trait Copy {}
+pub trait Copy : Clone {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
 #[lang = "sync"]
 pub unsafe auto trait Sync {}
 
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> !Sync for *const T { }
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> !Sync for *mut T { }
+
+#[lang = "phantom_data"]
+#[structural_match]
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct PhantomData<T:?Sized>;
 
 #[lang = "freeze"]
 pub(crate) unsafe auto trait Freeze {}

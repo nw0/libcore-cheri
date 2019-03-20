@@ -30,10 +30,10 @@ pub use marker::{Copy, Sized, Sync};
 // #[doc(no_inline)]
 // pub use mem::drop;
 // 
-// // Re-exported types and traits
-// #[stable(feature = "core_prelude", since = "1.4.0")]
-// #[doc(no_inline)]
-// pub use clone::Clone;
+// Re-exported types and traits
+#[stable(feature = "core_prelude", since = "1.4.0")]
+#[doc(no_inline)]
+pub use clone::Clone;
 // #[stable(feature = "core_prelude", since = "1.4.0")]
 // #[doc(no_inline)]
 // pub use cmp::{PartialEq, PartialOrd, Eq, Ord};

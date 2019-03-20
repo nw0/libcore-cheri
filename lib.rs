@@ -85,3 +85,4 @@ pub mod prelude;
 /* Core language traits */
 pub mod marker;
 pub mod ops;
+pub mod clone;
