@@ -1,12 +1,19 @@
+#![stable(feature = "rust1", since = "1.0.0")]
+
+#[stable(feature = "rust1", since = "1.0.0")]
 #[lang = "sized"]
+#[fundamental]
 pub trait Sized {}
 
 // This trait is also Clone
+#[stable(feature = "rust1", since = "1.0.0")]
 #[lang = "copy"]
 pub trait Copy {}
 
+#[stable(feature = "rust1", since = "1.0.0")]
 #[lang = "sync"]
 pub unsafe auto trait Sync {}
+
 
 #[lang = "freeze"]
 pub(crate) unsafe auto trait Freeze {}
@@ -17,6 +24,7 @@ mod copy_impls {
     macro_rules! impl_copy {
         ($($t:ty)*) => {
             $(
+                #[stable(feature = "rust1", since = "1.0.0")]
                 impl Copy for $t {}
             )*
         }
@@ -29,8 +37,15 @@ mod copy_impls {
         bool char
     }
 
+    #[unstable(feature = "never_type", issue = "35121")]
     impl Copy for ! {}
+
+    #[stable(feature = "rust1", since = "1.0.0")]
     impl<T: ?Sized> Copy for *const T {}
+
+    #[stable(feature = "rust1", since = "1.0.0")]
     impl<T: ?Sized> Copy for *mut T {}
+
+    #[stable(feature = "rust1", since = "1.0.0")]
     impl<T: ?Sized> Copy for &T {}
 }

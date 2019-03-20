@@ -17,6 +17,7 @@ macro_rules! forward_ref_unop {
                 #[stable(feature = "rust1", since = "1.0.0")]);
     };
     (impl $imp:ident, $method:ident for $t:ty, #[$attr:meta]) => {
+        #[$attr]
         impl<'a> $imp for &'a $t {
             type Output = <$t as $imp>::Output;
 
@@ -36,6 +37,7 @@ macro_rules! forward_ref_binop {
                 #[stable(feature = "rust1", since = "1.0.0")]);
     };
     (impl $imp:ident, $method:ident for $t:ty, $u:ty, #[$attr:meta]) => {
+        #[$attr]
         impl<'a> $imp<$u> for &'a $t {
             type Output = <$t as $imp<$u>>::Output;
 
@@ -45,6 +47,7 @@ macro_rules! forward_ref_binop {
             }
         }
 
+        #[$attr]
         impl<'a> $imp<&'a $u> for $t {
             type Output = <$t as $imp<$u>>::Output;
 
@@ -54,6 +57,7 @@ macro_rules! forward_ref_binop {
             }
         }
 
+        #[$attr]
         impl<'a, 'b> $imp<&'a $u> for &'b $t {
             type Output = <$t as $imp<$u>>::Output;
 
@@ -73,6 +77,7 @@ macro_rules! forward_ref_op_assign {
                 #[stable(feature = "op_assign_builtins_by_ref", since = "1.22.0")]);
     };
     (impl $imp:ident, $method:ident for $t:ty, $u:ty, #[$attr:meta]) => {
+        #[$attr]
         impl<'a> $imp<&'a $u> for $t {
             #[inline]
             fn $method(&mut self, other: &'a $u) {
