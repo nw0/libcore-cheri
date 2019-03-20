@@ -34,11 +34,12 @@ pub use ops::{Drop, Fn, FnMut, FnOnce};
 #[stable(feature = "core_prelude", since = "1.4.0")]
 #[doc(no_inline)]
 pub use clone::Clone;
-// #[stable(feature = "core_prelude", since = "1.4.0")]
-// #[doc(no_inline)]
-// pub use cmp::{PartialEq, PartialOrd, Eq, Ord};
-// #[stable(feature = "core_prelude", since = "1.4.0")]
-// #[doc(no_inline)]
+#[stable(feature = "core_prelude", since = "1.4.0")]
+#[doc(no_inline)]
+pub use cmp::{PartialEq, PartialOrd, Eq, Ord};
+#[stable(feature = "core_prelude", since = "1.4.0")]
+#[doc(no_inline)]
+pub use convert::From;
 // pub use convert::{AsRef, AsMut, Into, From};
 #[stable(feature = "core_prelude", since = "1.4.0")]
 #[doc(no_inline)]
@@ -49,9 +50,9 @@ pub use default::Default;
 // #[stable(feature = "core_prelude", since = "1.4.0")]
 // #[doc(no_inline)]
 // pub use iter::{DoubleEndedIterator, ExactSizeIterator};
-// #[stable(feature = "core_prelude", since = "1.4.0")]
-// #[doc(no_inline)]
-// pub use option::Option::{self, Some, None};
-// #[stable(feature = "core_prelude", since = "1.4.0")]
-// #[doc(no_inline)]
-// pub use result::Result::{self, Ok, Err};
+#[stable(feature = "core_prelude", since = "1.4.0")]
+#[doc(no_inline)]
+pub use option::Option::{self, Some, None};
+#[stable(feature = "core_prelude", since = "1.4.0")]
+#[doc(no_inline)]
+pub use result::Result::{self, Ok, Err};

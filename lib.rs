@@ -77,14 +77,29 @@
 use prelude::*;
 
 #[macro_use]
+mod macros;
+
+#[macro_use]
 mod internal_macros;
 
 /* The libcore prelude, not as all-encompassing as the libstd prelude */
 pub mod prelude;
 
+/* Core modules for ownership management */
+pub mod intrinsics;
+
 /* Core language traits */
 pub mod marker;
 pub mod ops;
+pub mod cmp;
 pub mod clone;
 pub mod default;
+pub mod convert;
 pub mod borrow;
+
+/* Core types and methods on primitives */
+pub mod panicking;
+pub mod option;
+pub mod result;
+
+pub mod fmt;

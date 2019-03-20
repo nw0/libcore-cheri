@@ -6,6 +6,7 @@ mod deref;
 mod drop;
 mod function;
 mod index;
+mod try;
 
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use self::arith::{Add, Sub, Mul, Div, Rem, Neg};
@@ -31,3 +32,6 @@ pub use self::function::{Fn, FnMut, FnOnce};
 
 #[stable(feature = "rust1", since = "1.0.0")]
 pub use self::index::{Index, IndexMut};
+
+#[unstable(feature = "try_trait", issue = "42327")]
+pub use self::try::Try;
