@@ -72,8 +72,15 @@
 #![feature(non_exhaustive)]
 #![feature(structural_match)]
 
+#[prelude_import]
+#[allow(unused)]
+use prelude::*;
+
 #[macro_use]
 mod internal_macros;
+
+/* The libcore prelude, not as all-encompassing as the libstd prelude */
+pub mod prelude;
 
 /* Core language traits */
 pub mod marker;
