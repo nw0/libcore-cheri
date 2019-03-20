@@ -38,8 +38,7 @@ pub use clone::Clone;
 pub use cmp::{PartialEq, PartialOrd, Eq, Ord};
 #[stable(feature = "core_prelude", since = "1.4.0")]
 #[doc(no_inline)]
-pub use convert::From;
-// pub use convert::{AsRef, AsMut, Into, From};
+pub use convert::{AsRef, AsMut, Into, From};
 #[stable(feature = "core_prelude", since = "1.4.0")]
 #[doc(no_inline)]
 pub use default::Default;
