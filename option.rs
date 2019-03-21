@@ -145,7 +145,8 @@
 
 #![stable(feature = "rust1", since = "1.0.0")]
 
-use ops::{self, Deref};
+use iter::{FromIterator, FusedIterator, TrustedLen};
+use {hint, mem, ops::{self, Deref}};
 
 // Note that this is not a lang item per se, but it has a hidden dependency on
 // `Iterator`, which is one. The compiler assumes that the `next` method of
@@ -509,6 +510,144 @@ impl<T> Option<T> {
         }
     }
 
+    /////////////////////////////////////////////////////////////////////////
+    // Iterator constructors
+    /////////////////////////////////////////////////////////////////////////
+
+    /// Returns an iterator over the possibly contained value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let x = Some(4);
+    /// assert_eq!(x.iter().next(), Some(&4));
+    ///
+    /// let x: Option<u32> = None;
+    /// assert_eq!(x.iter().next(), None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn iter(&self) -> Iter<T> {
+        Iter { inner: Item { opt: self.as_ref() } }
+    }
+
+    /// Returns a mutable iterator over the possibly contained value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = Some(4);
+    /// match x.iter_mut().next() {
+    ///     Some(v) => *v = 42,
+    ///     None => {},
+    /// }
+    /// assert_eq!(x, Some(42));
+    ///
+    /// let mut x: Option<u32> = None;
+    /// assert_eq!(x.iter_mut().next(), None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn iter_mut(&mut self) -> IterMut<T> {
+        IterMut { inner: Item { opt: self.as_mut() } }
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+    // Boolean operations on the values, eager and lazy
+    /////////////////////////////////////////////////////////////////////////
+
+    /// Returns [`None`] if the option is [`None`], otherwise returns `optb`.
+    ///
+    /// [`None`]: #variant.None
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let x = Some(2);
+    /// let y: Option<&str> = None;
+    /// assert_eq!(x.and(y), None);
+    ///
+    /// let x: Option<u32> = None;
+    /// let y = Some("foo");
+    /// assert_eq!(x.and(y), None);
+    ///
+    /// let x = Some(2);
+    /// let y = Some("foo");
+    /// assert_eq!(x.and(y), Some("foo"));
+    ///
+    /// let x: Option<u32> = None;
+    /// let y: Option<&str> = None;
+    /// assert_eq!(x.and(y), None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn and<U>(self, optb: Option<U>) -> Option<U> {
+        match self {
+            Some(_) => optb,
+            None => None,
+        }
+    }
+
+    /// Returns [`None`] if the option is [`None`], otherwise calls `f` with the
+    /// wrapped value and returns the result.
+    ///
+    /// Some languages call this operation flatmap.
+    ///
+    /// [`None`]: #variant.None
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// fn sq(x: u32) -> Option<u32> { Some(x * x) }
+    /// fn nope(_: u32) -> Option<u32> { None }
+    ///
+    /// assert_eq!(Some(2).and_then(sq).and_then(sq), Some(16));
+    /// assert_eq!(Some(2).and_then(sq).and_then(nope), None);
+    /// assert_eq!(Some(2).and_then(nope).and_then(sq), None);
+    /// assert_eq!(None.and_then(sq).and_then(sq), None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn and_then<U, F: FnOnce(T) -> Option<U>>(self, f: F) -> Option<U> {
+        match self {
+            Some(x) => f(x),
+            None => None,
+        }
+    }
+
+    /// Returns `None` if the option is `None`, otherwise calls `predicate`
+    /// with the wrapped value and returns:
+    ///
+    /// - `Some(t)` if `predicate` returns `true` (where `t` is the wrapped
+    ///   value), and
+    /// - `None` if `predicate` returns `false`.
+    ///
+    /// This function works similar to `Iterator::filter()`. You can imagine
+    /// the `Option<T>` being an iterator over one or zero elements. `filter()`
+    /// lets you decide which elements to keep.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// fn is_even(n: &i32) -> bool {
+    ///     n % 2 == 0
+    /// }
+    ///
+    /// assert_eq!(None.filter(is_even), None);
+    /// assert_eq!(Some(3).filter(is_even), None);
+    /// assert_eq!(Some(4).filter(is_even), Some(4));
+    /// ```
+    #[inline]
+    #[stable(feature = "option_filter", since = "1.27.0")]
+    pub fn filter<P: FnOnce(&T) -> bool>(self, predicate: P) -> Self {
+        if let Some(x) = self {
+            if predicate(&x) {
+                return Some(x)
+            }
+        }
+        None
+    }
+
     /// Returns the option if it contains a value, otherwise returns `optb`.
     ///
     /// Arguments passed to `or` are eagerly evaluated; if you are passing the
@@ -602,6 +741,166 @@ impl<T> Option<T> {
             _ => None,
         }
     }
+
+    /////////////////////////////////////////////////////////////////////////
+    // Entry-like operations to insert if None and return a reference
+    /////////////////////////////////////////////////////////////////////////
+
+    /// Inserts `v` into the option if it is [`None`], then
+    /// returns a mutable reference to the contained value.
+    ///
+    /// [`None`]: #variant.None
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = None;
+    ///
+    /// {
+    ///     let y: &mut u32 = x.get_or_insert(5);
+    ///     assert_eq!(y, &5);
+    ///
+    ///     *y = 7;
+    /// }
+    ///
+    /// assert_eq!(x, Some(7));
+    /// ```
+    #[inline]
+    #[stable(feature = "option_entry", since = "1.20.0")]
+    pub fn get_or_insert(&mut self, v: T) -> &mut T {
+        match *self {
+            None => *self = Some(v),
+            _ => (),
+        }
+
+        match *self {
+            Some(ref mut v) => v,
+            None => unsafe { hint::unreachable_unchecked() },
+        }
+    }
+
+    /// Inserts a value computed from `f` into the option if it is [`None`], then
+    /// returns a mutable reference to the contained value.
+    ///
+    /// [`None`]: #variant.None
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = None;
+    ///
+    /// {
+    ///     let y: &mut u32 = x.get_or_insert_with(|| 5);
+    ///     assert_eq!(y, &5);
+    ///
+    ///     *y = 7;
+    /// }
+    ///
+    /// assert_eq!(x, Some(7));
+    /// ```
+    #[inline]
+    #[stable(feature = "option_entry", since = "1.20.0")]
+    pub fn get_or_insert_with<F: FnOnce() -> T>(&mut self, f: F) -> &mut T {
+        match *self {
+            None => *self = Some(f()),
+            _ => (),
+        }
+
+        match *self {
+            Some(ref mut v) => v,
+            None => unsafe { hint::unreachable_unchecked() },
+        }
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+    // Misc
+    /////////////////////////////////////////////////////////////////////////
+
+    /// Takes the value out of the option, leaving a [`None`] in its place.
+    ///
+    /// [`None`]: #variant.None
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = Some(2);
+    /// let y = x.take();
+    /// assert_eq!(x, None);
+    /// assert_eq!(y, Some(2));
+    ///
+    /// let mut x: Option<u32> = None;
+    /// let y = x.take();
+    /// assert_eq!(x, None);
+    /// assert_eq!(y, None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn take(&mut self) -> Option<T> {
+        mem::replace(self, None)
+    }
+
+    /// Replaces the actual value in the option by the value given in parameter,
+    /// returning the old value if present,
+    /// leaving a [`Some`] in its place without deinitializing either one.
+    ///
+    /// [`Some`]: #variant.Some
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = Some(2);
+    /// let old = x.replace(5);
+    /// assert_eq!(x, Some(5));
+    /// assert_eq!(old, Some(2));
+    ///
+    /// let mut x = None;
+    /// let old = x.replace(3);
+    /// assert_eq!(x, Some(3));
+    /// assert_eq!(old, None);
+    /// ```
+    #[inline]
+    #[stable(feature = "option_replace", since = "1.31.0")]
+    pub fn replace(&mut self, value: T) -> Option<T> {
+        mem::replace(self, Some(value))
+    }
+}
+
+impl<'a, T: Clone> Option<&'a T> {
+    /// Maps an `Option<&T>` to an `Option<T>` by cloning the contents of the
+    /// option.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let x = 12;
+    /// let opt_x = Some(&x);
+    /// assert_eq!(opt_x, Some(&12));
+    /// let cloned = opt_x.cloned();
+    /// assert_eq!(cloned, Some(12));
+    /// ```
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn cloned(self) -> Option<T> {
+        self.map(|t| t.clone())
+    }
+}
+
+impl<'a, T: Clone> Option<&'a mut T> {
+    /// Maps an `Option<&mut T>` to an `Option<T>` by cloning the contents of the
+    /// option.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = 12;
+    /// let opt_x = Some(&mut x);
+    /// assert_eq!(opt_x, Some(&mut 12));
+    /// let cloned = opt_x.cloned();
+    /// assert_eq!(cloned, Some(12));
+    /// ```
+    #[stable(since = "1.26.0", feature = "option_ref_mut_cloned")]
+    pub fn cloned(self) -> Option<T> {
+        self.map(|t| t.clone())
+    }
 }
 
 impl<T: Default> Option<T> {
@@ -665,7 +964,7 @@ impl<T, E> Option<Result<T, E>> {
     /// ```
     /// #![feature(transpose_result)]
     ///
-    /// #[derive(Debug, Eq, PartialEq)]
+    /// #[derive(Eq, PartialEq)]
     /// struct SomeErr;
     ///
     /// let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
@@ -701,6 +1000,50 @@ impl<T> Default for Option<T> {
     fn default() -> Option<T> { None }
 }
 
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> IntoIterator for Option<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    /// Returns a consuming iterator over the possibly contained value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let x = Some("string");
+    /// let v: Vec<&str> = x.into_iter().collect();
+    /// assert_eq!(v, ["string"]);
+    ///
+    /// let x = None;
+    /// let v: Vec<&str> = x.into_iter().collect();
+    /// assert!(v.is_empty());
+    /// ```
+    #[inline]
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter { inner: Item { opt: self } }
+    }
+}
+
+#[stable(since = "1.4.0", feature = "option_iter")]
+impl<'a, T> IntoIterator for &'a Option<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Iter<'a, T> {
+        self.iter()
+    }
+}
+
+#[stable(since = "1.4.0", feature = "option_iter")]
+impl<'a, T> IntoIterator for &'a mut Option<T> {
+    type Item = &'a mut T;
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> IterMut<'a, T> {
+        self.iter_mut()
+    }
+}
+
 #[stable(since = "1.12.0", feature = "option_from")]
 impl<T> From<T> for Option<T> {
     fn from(val: T) -> Option<T> {
@@ -725,6 +1068,253 @@ impl<'a, T> From<&'a mut Option<T>> for Option<&'a mut T> {
 /////////////////////////////////////////////////////////////////////////////
 // The Option Iterators
 /////////////////////////////////////////////////////////////////////////////
+
+#[derive(Clone)]
+struct Item<A> {
+    opt: Option<A>
+}
+
+impl<A> Iterator for Item<A> {
+    type Item = A;
+
+    #[inline]
+    fn next(&mut self) -> Option<A> {
+        self.opt.take()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.opt {
+            Some(_) => (1, Some(1)),
+            None => (0, Some(0)),
+        }
+    }
+}
+
+impl<A> DoubleEndedIterator for Item<A> {
+    #[inline]
+    fn next_back(&mut self) -> Option<A> {
+        self.opt.take()
+    }
+}
+
+impl<A> ExactSizeIterator for Item<A> {}
+impl<A> FusedIterator for Item<A> {}
+unsafe impl<A> TrustedLen for Item<A> {}
+
+/// An iterator over a reference to the [`Some`] variant of an [`Option`].
+///
+/// The iterator yields one value if the [`Option`] is a [`Some`], otherwise none.
+///
+/// This `struct` is created by the [`Option::iter`] function.
+///
+/// [`Option`]: enum.Option.html
+/// [`Some`]: enum.Option.html#variant.Some
+/// [`Option::iter`]: enum.Option.html#method.iter
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct Iter<'a, A: 'a> { inner: Item<&'a A> }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, A> Iterator for Iter<'a, A> {
+    type Item = &'a A;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a A> { self.inner.next() }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, A> DoubleEndedIterator for Iter<'a, A> {
+    #[inline]
+    fn next_back(&mut self) -> Option<&'a A> { self.inner.next_back() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A> ExactSizeIterator for Iter<'_, A> {}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl<A> FusedIterator for Iter<'_, A> {}
+
+#[unstable(feature = "trusted_len", issue = "37572")]
+unsafe impl<A> TrustedLen for Iter<'_, A> {}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A> Clone for Iter<'_, A> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Iter { inner: self.inner.clone() }
+    }
+}
+
+/// An iterator over a mutable reference to the [`Some`] variant of an [`Option`].
+///
+/// The iterator yields one value if the [`Option`] is a [`Some`], otherwise none.
+///
+/// This `struct` is created by the [`Option::iter_mut`] function.
+///
+/// [`Option`]: enum.Option.html
+/// [`Some`]: enum.Option.html#variant.Some
+/// [`Option::iter_mut`]: enum.Option.html#method.iter_mut
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct IterMut<'a, A: 'a> { inner: Item<&'a mut A> }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, A> Iterator for IterMut<'a, A> {
+    type Item = &'a mut A;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a mut A> { self.inner.next() }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, A> DoubleEndedIterator for IterMut<'a, A> {
+    #[inline]
+    fn next_back(&mut self) -> Option<&'a mut A> { self.inner.next_back() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A> ExactSizeIterator for IterMut<'_, A> {}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl<A> FusedIterator for IterMut<'_, A> {}
+#[unstable(feature = "trusted_len", issue = "37572")]
+unsafe impl<A> TrustedLen for IterMut<'_, A> {}
+
+/// An iterator over the value in [`Some`] variant of an [`Option`].
+///
+/// The iterator yields one value if the [`Option`] is a [`Some`], otherwise none.
+///
+/// This `struct` is created by the [`Option::into_iter`] function.
+///
+/// [`Option`]: enum.Option.html
+/// [`Some`]: enum.Option.html#variant.Some
+/// [`Option::into_iter`]: enum.Option.html#method.into_iter
+#[derive(Clone)]
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct IntoIter<A> { inner: Item<A> }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A> Iterator for IntoIter<A> {
+    type Item = A;
+
+    #[inline]
+    fn next(&mut self) -> Option<A> { self.inner.next() }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A> DoubleEndedIterator for IntoIter<A> {
+    #[inline]
+    fn next_back(&mut self) -> Option<A> { self.inner.next_back() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A> ExactSizeIterator for IntoIter<A> {}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl<A> FusedIterator for IntoIter<A> {}
+
+#[unstable(feature = "trusted_len", issue = "37572")]
+unsafe impl<A> TrustedLen for IntoIter<A> {}
+
+/////////////////////////////////////////////////////////////////////////////
+// FromIterator
+/////////////////////////////////////////////////////////////////////////////
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A, V: FromIterator<A>> FromIterator<Option<A>> for Option<V> {
+    /// Takes each element in the [`Iterator`]: if it is [`None`][Option::None],
+    /// no further elements are taken, and the [`None`][Option::None] is
+    /// returned. Should no [`None`][Option::None] occur, a container with the
+    /// values of each [`Option`] is returned.
+    ///
+    /// # Examples
+    ///
+    /// Here is an example which increments every integer in a vector.
+    /// `We use the checked variant of `add` that returns `None` when the
+    /// calculation would result in an overflow.
+    ///
+    /// ```
+    /// let items = vec![0_u16, 1, 2];
+    ///
+    /// let res: Option<Vec<u16>> = items
+    ///     .iter()
+    ///     .map(|x| x.checked_add(1))
+    ///     .collect();
+    ///
+    /// assert_eq!(res, Some(vec![1, 2, 3]));
+    /// ```
+    ///
+    /// As you can see, this will return the expected, valid items.
+    ///
+    /// Here is another example that tries to subtract one from another list
+    /// of integers, this time checking for underflow:
+    ///
+    /// ```
+    /// let items = vec![2_u16, 1, 0];
+    ///
+    /// let res: Option<Vec<u16>> = items
+    ///     .iter()
+    ///     .map(|x| x.checked_sub(1))
+    ///     .collect();
+    ///
+    /// assert_eq!(res, None);
+    /// ```
+    ///
+    /// Since the last element is zero, it would underflow. Thus, the resulting
+    /// value is `None`.
+    ///
+    /// [`Iterator`]: ../iter/trait.Iterator.html
+    #[inline]
+    fn from_iter<I: IntoIterator<Item=Option<A>>>(iter: I) -> Option<V> {
+        // FIXME(#11084): This could be replaced with Iterator::scan when this
+        // performance bug is closed.
+
+        struct Adapter<Iter> {
+            iter: Iter,
+            found_none: bool,
+        }
+
+        impl<T, Iter: Iterator<Item=Option<T>>> Iterator for Adapter<Iter> {
+            type Item = T;
+
+            #[inline]
+            fn next(&mut self) -> Option<T> {
+                match self.iter.next() {
+                    Some(Some(value)) => Some(value),
+                    Some(None) => {
+                        self.found_none = true;
+                        None
+                    }
+                    None => None,
+                }
+            }
+
+            #[inline]
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                if self.found_none {
+                    (0, Some(0))
+                } else {
+                    let (_, upper) = self.iter.size_hint();
+                    (0, upper)
+                }
+            }
+        }
+
+        let mut adapter = Adapter { iter: iter.into_iter(), found_none: false };
+        let v: V = FromIterator::from_iter(adapter.by_ref());
+
+        if adapter.found_none {
+            None
+        } else {
+            Some(v)
+        }
+    }
+}
 
 /// The error type that results from applying the try operator (`?`) to a `None` value. If you wish
 /// to allow `x?` (where `x` is an `Option<T>`) to be converted into your error type, you can

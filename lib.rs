@@ -133,10 +133,12 @@ pub mod borrow;
 
 /* Core types and methods on primitives */
 pub mod panicking;
+pub mod iter;
 pub mod option;
 pub mod result;
 
 pub mod slice;
 pub mod fmt;
 
+mod iter_private;
 mod nonzero;
