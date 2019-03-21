@@ -725,7 +725,7 @@ impl<T, E> Result<T, E> {
     }
 }
 
-impl<T, E: fmt::Debug> Result<T, E> {
+impl<T, E> Result<T, E> {
     /// Unwraps a result, yielding the content of an [`Ok`].
     ///
     /// # Panics
@@ -954,7 +954,7 @@ impl<T, E> Result<Option<T>, E> {
 // This is a separate function to reduce the code size of the methods
 #[inline(never)]
 #[cold]
-fn unwrap_failed<E: fmt::Debug>(_msg: &str, _error: E) -> ! {
+fn unwrap_failed<E>(_msg: &str, _error: E) -> ! {
     panic!("unwrap_failed (result.rs)");
 }
 
