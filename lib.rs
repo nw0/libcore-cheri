@@ -90,6 +90,7 @@ pub mod prelude;
 
 /* Core modules for ownership management */
 pub mod intrinsics;
+pub mod ptr;
 
 /* Core language traits */
 pub mod marker;
@@ -105,6 +106,7 @@ pub mod panicking;
 pub mod option;
 pub mod result;
 
+pub mod slice;
 pub mod fmt;
 
 mod nonzero;
