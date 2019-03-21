@@ -90,6 +90,7 @@ pub mod prelude;
 
 /* Core modules for ownership management */
 pub mod intrinsics;
+pub mod mem;
 pub mod ptr;
 
 /* Core language traits */

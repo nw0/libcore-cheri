@@ -24,11 +24,11 @@ pub use marker::{Copy, Send, Sized, Sync, Unpin};
 #[doc(no_inline)]
 pub use ops::{Drop, Fn, FnMut, FnOnce};
 
-// // Re-exported functions
-// #[stable(feature = "core_prelude", since = "1.4.0")]
-// #[doc(no_inline)]
-// pub use mem::drop;
-// 
+// Re-exported functions
+#[stable(feature = "core_prelude", since = "1.4.0")]
+#[doc(no_inline)]
+pub use mem::drop;
+
 // Re-exported types and traits
 #[stable(feature = "core_prelude", since = "1.4.0")]
 #[doc(no_inline)]
