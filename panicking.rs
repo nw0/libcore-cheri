@@ -44,3 +44,11 @@
 pub fn panic(_expr_file_line_col: &(&'static str, &'static str, u32, u32)) -> ! {
     unsafe { super::intrinsics::abort() }
 }
+
+#[cold]
+#[cfg_attr(not(feature="panic_immediate_abort"),inline(never))]
+#[lang = "panic_bounds_check"]
+fn panic_bounds_check(file_line_col: &(&'static str, u32, u32),
+                     index: usize, len: usize) -> ! {
+    unsafe { super::intrinsics::abort() }
+}
