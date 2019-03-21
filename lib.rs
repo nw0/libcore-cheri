@@ -22,7 +22,7 @@
 #![feature(cfg_target_has_atomic)]
 #![feature(concat_idents)]
 #![feature(const_fn)]
-// #![feature(const_int_ops)]
+#![feature(const_int_ops)]
 #![feature(const_fn_union)]
 #![feature(custom_attribute)]
 #![feature(doc_cfg)]
@@ -63,10 +63,10 @@
 // #![feature(const_slice_len)]
 // #![feature(const_str_as_bytes)]
 // #![feature(const_str_len)]
-// #![feature(const_int_rotate)]
-// #![feature(const_int_wrapping)]
-// #![feature(const_int_sign)]
-// #![feature(const_int_conversion)]
+#![feature(const_int_rotate)]
+#![feature(const_int_wrapping)]
+#![feature(const_int_sign)]
+#![feature(const_int_conversion)]
 #![feature(const_transmute)]
 // #![feature(reverse_bits)]
 #![feature(non_exhaustive)]
@@ -84,6 +84,13 @@ mod macros;
 
 #[macro_use]
 mod internal_macros;
+
+#[path = "num/int_macros.rs"]
+#[macro_use]
+mod int_macros;
+
+#[macro_use]
+pub mod num;
 
 /* The libcore prelude, not as all-encompassing as the libstd prelude */
 pub mod prelude;
