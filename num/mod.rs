@@ -911,9 +911,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_wrapping")]
             #[inline]
             pub const fn wrapping_add(self, rhs: Self) -> Self {
-                unsafe {
-                    intrinsics::overflowing_add(self, rhs)
-                }
+                intrinsics::overflowing_add(self, rhs)
             }
         }
 
@@ -935,9 +933,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_wrapping")]
             #[inline]
             pub const fn wrapping_sub(self, rhs: Self) -> Self {
-                unsafe {
-                    intrinsics::overflowing_sub(self, rhs)
-                }
+                intrinsics::overflowing_sub(self, rhs)
             }
         }
 
@@ -958,9 +954,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_wrapping")]
             #[inline]
             pub const fn wrapping_mul(self, rhs: Self) -> Self {
-                unsafe {
-                    intrinsics::overflowing_mul(self, rhs)
-                }
+                intrinsics::overflowing_mul(self, rhs)
             }
         }
 
@@ -1248,10 +1242,7 @@ assert_eq!(", stringify!($SelfT), "::MAX.overflowing_add(1), (", stringify!($Sel
             #[rustc_const_unstable(feature = "const_int_overflowing")]
             #[inline]
             pub const fn overflowing_add(self, rhs: Self) -> (Self, bool) {
-                let (a, b) = unsafe {
-                    intrinsics::add_with_overflow(self as $ActualT,
-                                                  rhs as $ActualT)
-                };
+                let (a, b) = intrinsics::add_with_overflow(self as $ActualT, rhs as $ActualT);
                 (a as Self, b)
             }
         }
@@ -1277,10 +1268,7 @@ assert_eq!(", stringify!($SelfT), "::MIN.overflowing_sub(1), (", stringify!($Sel
             #[rustc_const_unstable(feature = "const_int_overflowing")]
             #[inline]
             pub const fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
-                let (a, b) = unsafe {
-                    intrinsics::sub_with_overflow(self as $ActualT,
-                                                  rhs as $ActualT)
-                };
+                let (a, b) = intrinsics::sub_with_overflow(self as $ActualT, rhs as $ActualT);
                 (a as Self, b)
             }
         }
@@ -1304,10 +1292,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_overflowing")]
             #[inline]
             pub const fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
-                let (a, b) = unsafe {
-                    intrinsics::mul_with_overflow(self as $ActualT,
-                                                  rhs as $ActualT)
-                };
+                let (a, b) = intrinsics::mul_with_overflow(self as $ActualT, rhs as $ActualT);
                 (a as Self, b)
             }
         }
@@ -2127,7 +2112,7 @@ assert_eq!(n.count_ones(), 3);", $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_ops")]
             #[inline]
             pub const fn count_ones(self) -> u32 {
-                unsafe { intrinsics::ctpop(self as $ActualT) as u32 }
+                intrinsics::ctpop(self as $ActualT) as u32
             }
         }
 
@@ -2165,7 +2150,7 @@ assert_eq!(n.leading_zeros(), 2);", $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_ops")]
             #[inline]
             pub const fn leading_zeros(self) -> u32 {
-                unsafe { intrinsics::ctlz(self as $ActualT) as u32 }
+                intrinsics::ctlz(self as $ActualT) as u32
             }
         }
 
@@ -2186,7 +2171,7 @@ assert_eq!(n.trailing_zeros(), 3);", $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_ops")]
             #[inline]
             pub const fn trailing_zeros(self) -> u32 {
-                unsafe { intrinsics::cttz(self) as u32 }
+                intrinsics::cttz(self) as u32
             }
         }
 
@@ -2210,7 +2195,7 @@ assert_eq!(n.rotate_left(", $rot, "), m);
             #[rustc_const_unstable(feature = "const_int_rotate")]
             #[inline]
             pub const fn rotate_left(self, n: u32) -> Self {
-                unsafe { intrinsics::rotate_left(self, n as $SelfT) }
+                intrinsics::rotate_left(self, n as $SelfT)
             }
         }
 
@@ -2235,7 +2220,7 @@ assert_eq!(n.rotate_right(", $rot, "), m);
             #[rustc_const_unstable(feature = "const_int_rotate")]
             #[inline]
             pub const fn rotate_right(self, n: u32) -> Self {
-                unsafe { intrinsics::rotate_right(self, n as $SelfT) }
+                intrinsics::rotate_right(self, n as $SelfT)
             }
         }
 
@@ -2257,7 +2242,7 @@ assert_eq!(m, ", $swapped, ");
             #[rustc_const_unstable(feature = "const_int_ops")]
             #[inline]
             pub const fn swap_bytes(self) -> Self {
-                unsafe { intrinsics::bswap(self as $ActualT) as Self }
+                intrinsics::bswap(self as $ActualT) as Self
             }
         }
 
@@ -2280,7 +2265,7 @@ assert_eq!(m, ", $reversed, ");
             #[rustc_const_unstable(feature = "const_int_conversion")]
             #[inline]
             pub const fn reverse_bits(self) -> Self {
-                unsafe { intrinsics::bitreverse(self as $ActualT) as Self }
+                intrinsics::bitreverse(self as $ActualT) as Self
             }
         }
 
@@ -2784,9 +2769,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_wrapping")]
             #[inline]
             pub const fn wrapping_add(self, rhs: Self) -> Self {
-                unsafe {
-                    intrinsics::overflowing_add(self, rhs)
-                }
+                intrinsics::overflowing_add(self, rhs)
             }
         }
 
@@ -2807,9 +2790,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_wrapping")]
             #[inline]
             pub const fn wrapping_sub(self, rhs: Self) -> Self {
-                unsafe {
-                    intrinsics::overflowing_sub(self, rhs)
-                }
+                intrinsics::overflowing_sub(self, rhs)
             }
         }
 
@@ -2831,9 +2812,7 @@ $EndFeature, "
         #[rustc_const_unstable(feature = "const_int_wrapping")]
         #[inline]
         pub const fn wrapping_mul(self, rhs: Self) -> Self {
-            unsafe {
-                intrinsics::overflowing_mul(self, rhs)
-            }
+            intrinsics::overflowing_mul(self, rhs)
         }
 
         doc_comment! {
@@ -3076,10 +3055,7 @@ assert_eq!(", stringify!($SelfT), "::MAX.overflowing_add(1), (0, true));", $EndF
             #[rustc_const_unstable(feature = "const_int_overflowing")]
             #[inline]
             pub const fn overflowing_add(self, rhs: Self) -> (Self, bool) {
-                let (a, b) = unsafe {
-                    intrinsics::add_with_overflow(self as $ActualT,
-                                                  rhs as $ActualT)
-                };
+                let (a, b) = intrinsics::add_with_overflow(self as $ActualT, rhs as $ActualT);
                 (a as Self, b)
             }
         }
@@ -3106,10 +3082,7 @@ $EndFeature, "
             #[rustc_const_unstable(feature = "const_int_overflowing")]
             #[inline]
             pub const fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
-                let (a, b) = unsafe {
-                    intrinsics::sub_with_overflow(self as $ActualT,
-                                                  rhs as $ActualT)
-                };
+                let (a, b) = intrinsics::sub_with_overflow(self as $ActualT, rhs as $ActualT);
                 (a as Self, b)
             }
         }
@@ -3135,10 +3108,7 @@ $EndFeature, "
         #[rustc_const_unstable(feature = "const_int_overflowing")]
         #[inline]
         pub const fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
-            let (a, b) = unsafe {
-                intrinsics::mul_with_overflow(self as $ActualT,
-                                              rhs as $ActualT)
-            };
+            let (a, b) = intrinsics::mul_with_overflow(self as $ActualT, rhs as $ActualT);
             (a as Self, b)
         }
 
@@ -4488,7 +4458,7 @@ macro_rules! rev {
     )*}
 }
 
-/// intra-sign conversions
+// intra-sign conversions
 try_from_upper_bounded!(u16, u8);
 try_from_upper_bounded!(u32, u16, u8);
 try_from_upper_bounded!(u64, u32, u16, u8);
