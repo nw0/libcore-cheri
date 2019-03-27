@@ -11,4 +11,4 @@ libcore_cheri.so: lib.rs
 	$(RUSTC) $> --crate-type lib --emit=obj=$@ -C panic=abort -C debug-assertions=off --target cheri-unknown-freebsd -C linker=$(CHERIBUILD)/output/sdk/bin/cheri-unknown-freebsd-clang -C link-arg=--sysroot=$(CHERIBUILD)/output/sdk/sysroot128 -C link-arg=-fPIC -C target-feature=+soft-float
 
 clean:
-	rm -f *.rlib *.so
+	rm -f *.rlib *.so *.o *.bc.z
