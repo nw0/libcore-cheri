@@ -199,8 +199,7 @@ enum CharErrorKind {
 }
 
 
-
-#[unstable(feature = "try_from", issue = "33417")]
+#[stable(feature = "try_from", since = "1.34.0")]
 impl TryFrom<u32> for char {
     type Error = CharTryFromError;
 
@@ -215,7 +214,7 @@ impl TryFrom<u32> for char {
 }
 
 /// The error type returned when a conversion from u32 to char fails.
-#[unstable(feature = "try_from", issue = "33417")]
+#[stable(feature = "try_from", since = "1.34.0")]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct CharTryFromError(());
 

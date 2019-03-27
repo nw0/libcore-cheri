@@ -4356,7 +4356,7 @@ pub enum FpCategory {
 }
 
 /// The error type returned when a checked integral type conversion fails.
-#[unstable(feature = "try_from", issue = "33417")]
+#[stable(feature = "try_from", since = "1.34.0")]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct TryFromIntError(());
 
@@ -4371,7 +4371,7 @@ impl TryFromIntError {
     }
 }
 
-#[unstable(feature = "try_from", issue = "33417")]
+#[stable(feature = "try_from", since = "1.34.0")]
 impl From<!> for TryFromIntError {
     fn from(never: !) -> TryFromIntError {
         never
@@ -4381,7 +4381,7 @@ impl From<!> for TryFromIntError {
 // no possible bounds violation
 macro_rules! try_from_unbounded {
     ($source:ty, $($target:ty),*) => {$(
-        #[unstable(feature = "try_from", issue = "33417")]
+        #[stable(feature = "try_from", since = "1.34.0")]
         impl TryFrom<$source> for $target {
             type Error = TryFromIntError;
 
@@ -4396,7 +4396,7 @@ macro_rules! try_from_unbounded {
 // only negative bounds
 macro_rules! try_from_lower_bounded {
     ($source:ty, $($target:ty),*) => {$(
-        #[unstable(feature = "try_from", issue = "33417")]
+        #[stable(feature = "try_from", since = "1.34.0")]
         impl TryFrom<$source> for $target {
             type Error = TryFromIntError;
 
@@ -4415,7 +4415,7 @@ macro_rules! try_from_lower_bounded {
 // unsigned to signed (only positive bound)
 macro_rules! try_from_upper_bounded {
     ($source:ty, $($target:ty),*) => {$(
-        #[unstable(feature = "try_from", issue = "33417")]
+        #[stable(feature = "try_from", since = "1.34.0")]
         impl TryFrom<$source> for $target {
             type Error = TryFromIntError;
 
@@ -4434,7 +4434,7 @@ macro_rules! try_from_upper_bounded {
 // all other cases
 macro_rules! try_from_both_bounded {
     ($source:ty, $($target:ty),*) => {$(
-        #[unstable(feature = "try_from", issue = "33417")]
+        #[stable(feature = "try_from", since = "1.34.0")]
         impl TryFrom<$source> for $target {
             type Error = TryFromIntError;
 
