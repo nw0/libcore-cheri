@@ -142,6 +142,10 @@ pub mod ffi;
 pub mod slice;
 pub mod fmt;
 
+/* Heap memory allocator trait */
+#[allow(missing_docs)]
+pub mod alloc;
+
 mod iter_private;
 mod nonzero;
 mod tuple;
