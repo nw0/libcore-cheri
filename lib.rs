@@ -142,6 +142,8 @@ pub mod ffi;
 pub mod slice;
 pub mod fmt;
 
+pub mod unicode;
+
 /* Heap memory allocator trait */
 #[allow(missing_docs)]
 pub mod alloc;
