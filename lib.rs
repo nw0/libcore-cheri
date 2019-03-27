@@ -132,6 +132,7 @@ pub mod convert;
 pub mod borrow;
 
 /* Core types and methods on primitives */
+pub mod char;
 pub mod panic;
 pub mod panicking;
 pub mod iter;
@@ -140,6 +141,7 @@ pub mod result;
 pub mod ffi;
 
 pub mod slice;
+pub mod str;
 pub mod fmt;
 
 pub mod unicode;
