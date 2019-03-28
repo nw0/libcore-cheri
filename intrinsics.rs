@@ -1052,6 +1052,8 @@ extern "rust-intrinsic" {
     /// value is not necessarily valid to be used to actually access memory.
     pub fn arith_offset<T>(dst: *const T, offset: isize) -> *const T;
 
+    pub fn ptr_diff<T>(lhs: *const T, rhs: *const T) -> usize;
+
     /// Copies `count * size_of::<T>()` bytes from `src` to `dst`. The source
     /// and destination must *not* overlap.
     ///
