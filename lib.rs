@@ -150,7 +150,6 @@ pub mod unicode;
 #[allow(missing_docs)]
 pub mod alloc;
 
-mod iter_private;
 mod nonzero;
 mod tuple;
 mod unit;

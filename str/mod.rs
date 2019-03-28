@@ -7,7 +7,6 @@
 use char;
 use mem;
 use iter::{Map, Cloned, FusedIterator, TrustedLen, Filter};
-use iter_private::TrustedRandomAccess;
 use slice::{self, SliceIndex, Split as SliceSplit};
 
 /// A trait to abstract the idea of creating a new instance of a type from a
@@ -661,14 +660,6 @@ impl FusedIterator for Bytes<'_> {}
 
 #[unstable(feature = "trusted_len", issue = "37572")]
 unsafe impl TrustedLen for Bytes<'_> {}
-
-#[doc(hidden)]
-unsafe impl<'a> TrustedRandomAccess for Bytes<'a> {
-    unsafe fn get_unchecked(&mut self, i: usize) -> u8 {
-        self.0.get_unchecked(i)
-    }
-    fn may_have_side_effect() -> bool { false }
-}
 
 /*
 Section: UTF-8 validation
