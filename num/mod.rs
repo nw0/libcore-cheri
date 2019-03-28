@@ -129,6 +129,9 @@ pub struct Wrapping<T>(#[stable(feature = "rust1", since = "1.0.0")]
                        pub T);
 
 // All these modules are technically private and only exposed for coretests:
+pub mod dec2flt;
+pub mod flt2dec;
+
 mod wrapping;
 
 // `Int` + `SignedInt` implemented for signed integers
