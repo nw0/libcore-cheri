@@ -137,6 +137,7 @@
 
 use iter::{FromIterator, FusedIterator, TrustedLen};
 use {hint, mem, ops::{self, Deref}};
+use pin::Pin;
 
 // Note that this is not a lang item per se, but it has a hidden dependency on
 // `Iterator`, which is one. The compiler assumes that the `next` method of
@@ -144,7 +145,7 @@ use {hint, mem, ops::{self, Deref}};
 // which basically means it must be `Option`.
 
 /// The `Option` type. See [the module level documentation](index.html) for more.
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub enum Option<T> {
     /// No value
@@ -259,6 +260,24 @@ impl<T> Option<T> {
         }
     }
 
+
+    /// Converts from `Pin<&Option<T>>` to `Option<Pin<&T>>`
+    #[inline]
+    #[stable(feature = "pin", since = "1.33.0")]
+    pub fn as_pin_ref<'a>(self: Pin<&'a Option<T>>) -> Option<Pin<&'a T>> {
+        unsafe {
+            Pin::get_ref(self).as_ref().map(|x| Pin::new_unchecked(x))
+        }
+    }
+
+    /// Converts from `Pin<&mut Option<T>>` to `Option<Pin<&mut T>>`
+    #[inline]
+    #[stable(feature = "pin", since = "1.33.0")]
+    pub fn as_pin_mut<'a>(self: Pin<&'a mut Option<T>>) -> Option<Pin<&'a mut T>> {
+        unsafe {
+            Pin::get_unchecked_mut(self).as_mut().map(|x| Pin::new_unchecked(x))
+        }
+    }
 
     /////////////////////////////////////////////////////////////////////////
     // Getting to contained values
@@ -1349,7 +1368,7 @@ impl<A, V: FromIterator<A>> FromIterator<Option<A>> for Option<V> {
 /// implement `impl From<NoneError>` for `YourErrorType`. In that case, `x?` within a function that
 /// returns `Result<_, YourErrorType>` will translate a `None` value into an `Err` result.
 #[unstable(feature = "try_trait", issue = "42327")]
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub struct NoneError;
 
 #[unstable(feature = "try_trait", issue = "42327")]

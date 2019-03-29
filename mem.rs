@@ -7,6 +7,8 @@
 
 use clone;
 use cmp;
+use fmt;
+use hash;
 use intrinsics;
 use marker::{Copy, PhantomData, Sized};
 use ptr;
@@ -851,6 +853,22 @@ impl<T> cmp::PartialEq for Discriminant<T> {
 #[stable(feature = "discriminant_value", since = "1.21.0")]
 impl<T> cmp::Eq for Discriminant<T> {}
 
+#[stable(feature = "discriminant_value", since = "1.21.0")]
+impl<T> hash::Hash for Discriminant<T> {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+#[stable(feature = "discriminant_value", since = "1.21.0")]
+impl<T> fmt::Debug for Discriminant<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_tuple("Discriminant")
+           .field(&self.0)
+           .finish()
+    }
+}
+
 /// Returns a value uniquely identifying the enum variant in `v`.
 ///
 /// If `T` is not an enum, calling this function will not result in undefined behavior, but the
@@ -927,7 +945,7 @@ pub fn discriminant<T>(v: &T) -> Discriminant<T> {
 /// [`mem::zeroed`]: fn.zeroed.html
 #[stable(feature = "manually_drop", since = "1.20.0")]
 #[lang = "manually_drop"]
-#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ManuallyDrop<T: ?Sized> {
     value: T,
