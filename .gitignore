@@ -5,3 +5,5 @@ Cargo.lock
 *.swp
 *.rlib
 *.so
+*.bc.z
+*.o
