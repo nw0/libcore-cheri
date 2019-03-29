@@ -1,13 +1,3 @@
-// Copyright 2012 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 /// The addition operator `+`.
 ///
 /// Note that `RHS` is `Self` by default, but this is not mandatory. For
@@ -30,10 +20,10 @@
 /// }
 ///
 /// impl Add for Point {
-///     type Output = Point;
+///     type Output = Self;
 ///
-///     fn add(self, other: Point) -> Point {
-///         Point {
+///     fn add(self, other: Self) -> Self {
+///         Self {
 ///             x: self.x + other.x,
 ///             y: self.y + other.y,
 ///         }
@@ -59,11 +49,11 @@
 /// }
 ///
 /// // Notice that the implementation uses the associated type `Output`.
-/// impl<T: Add<Output=T>> Add for Point<T> {
-///     type Output = Point<T>;
+/// impl<T: Add<Output = T>> Add for Point<T> {
+///     type Output = Self;
 ///
-///     fn add(self, other: Point<T>) -> Point<T> {
-///         Point {
+///     fn add(self, other: Self) -> Self::Output {
+///         Self {
 ///             x: self.x + other.x,
 ///             y: self.y + other.y,
 ///         }
@@ -167,10 +157,10 @@ add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 /// }
 ///
 /// // Notice that the implementation uses the associated type `Output`.
-/// impl<T: Sub<Output=T>> Sub for Point<T> {
-///     type Output = Point<T>;
+/// impl<T: Sub<Output = T>> Sub for Point<T> {
+///     type Output = Self;
 ///
-///     fn sub(self, other: Point<T>) -> Point<T> {
+///     fn sub(self, other: Self) -> Self::Output {
 ///         Point {
 ///             x: self.x - other.x,
 ///             y: self.y - other.y,
@@ -290,9 +280,9 @@ sub_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 /// struct Vector { value: Vec<usize> }
 ///
 /// impl Mul<Scalar> for Vector {
-///     type Output = Vector;
+///     type Output = Self;
 ///
-///     fn mul(self, rhs: Scalar) -> Vector {
+///     fn mul(self, rhs: Scalar) -> Self::Output {
 ///         Vector { value: self.value.iter().map(|v| v * rhs.value).collect() }
 ///     }
 /// }
@@ -374,7 +364,7 @@ mul_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 ///     // The division of rational numbers is a closed operation.
 ///     type Output = Self;
 ///
-///     fn div(self, rhs: Self) -> Self {
+///     fn div(self, rhs: Self) -> Self::Output {
 ///         if rhs.nominator == 0 {
 ///             panic!("Cannot divide by zero-valued `Rational`!");
 ///         }
@@ -414,9 +404,9 @@ mul_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 /// struct Vector { value: Vec<f32> }
 ///
 /// impl Div<Scalar> for Vector {
-///     type Output = Vector;
+///     type Output = Self;
 ///
-///     fn div(self, rhs: Scalar) -> Vector {
+///     fn div(self, rhs: Scalar) -> Self::Output {
 ///         Vector { value: self.value.iter().map(|v| v / rhs.value).collect() }
 ///     }
 /// }
@@ -495,9 +485,9 @@ div_impl_float! { f32 f64 }
 /// }
 ///
 /// impl<'a, T> Rem<usize> for SplitSlice<'a, T> {
-///     type Output = SplitSlice<'a, T>;
+///     type Output = Self;
 ///
-///     fn rem(self, modulus: usize) -> Self {
+///     fn rem(self, modulus: usize) -> Self::Output {
 ///         let len = self.slice.len();
 ///         let rem = len % modulus;
 ///         let start = len - rem;
@@ -528,7 +518,7 @@ pub trait Rem<RHS=Self> {
 
 macro_rules! rem_impl_integer {
     ($($t:ty)*) => ($(
-        /// This operation satisfies `n % d == n - (n / d) * d`.  The
+        /// This operation satisfies `n % d == n - (n / d) * d`. The
         /// result has the same sign as the left operand.
         #[stable(feature = "rust1", since = "1.0.0")]
         impl Rem for $t {
@@ -581,7 +571,7 @@ rem_impl_float! { f32 f64 }
 /// impl Neg for Sign {
 ///     type Output = Sign;
 ///
-///     fn neg(self) -> Sign {
+///     fn neg(self) -> Self::Output {
 ///         match self {
 ///             Sign::Negative => Sign::Positive,
 ///             Sign::Zero => Sign::Zero,
@@ -660,8 +650,8 @@ neg_impl_numeric! { isize i8 i16 i32 i64 i128 f32 f64 }
 /// }
 ///
 /// impl AddAssign for Point {
-///     fn add_assign(&mut self, other: Point) {
-///         *self = Point {
+///     fn add_assign(&mut self, other: Self) {
+///         *self = Self {
 ///             x: self.x + other.x,
 ///             y: self.y + other.y,
 ///         };
@@ -716,8 +706,8 @@ add_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 /// }
 ///
 /// impl SubAssign for Point {
-///     fn sub_assign(&mut self, other: Point) {
-///         *self = Point {
+///     fn sub_assign(&mut self, other: Self) {
+///         *self = Self {
 ///             x: self.x - other.x,
 ///             y: self.y - other.y,
 ///         };

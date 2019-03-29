@@ -64,12 +64,12 @@
 #![stable(feature = "rust1", since = "1.0.0")]
 
 use convert::From;
-use fmt;
 use intrinsics;
 use ops::{CoerceUnsized, DispatchFromDyn};
+use fmt;
+use hash;
 use marker::{PhantomData, Unsize};
 use mem::{self, MaybeUninit};
-use nonzero::NonZero;
 
 use cmp::Ordering::{self, Less, Equal, Greater};
 
@@ -301,7 +301,7 @@ pub unsafe fn swap<T>(x: *mut T, y: *mut T) {
     // Perform the swap
     copy_nonoverlapping(x, tmp.as_mut_ptr(), 1);
     copy(y, x, 1); // `x` and `y` may overlap
-    copy_nonoverlapping(tmp.get_ref(), y, 1);
+    copy_nonoverlapping(tmp.as_ptr(), y, 1);
 }
 
 /// Swaps `count * size_of::<T>()` bytes between the two regions of memory
@@ -531,7 +531,7 @@ pub unsafe fn replace<T>(dst: *mut T, mut src: T) -> T {
 ///
 /// `read` creates a bitwise copy of `T`, regardless of whether `T` is [`Copy`].
 /// If `T` is not [`Copy`], using both the returned value and the value at
-/// `*src` can violate memory safety.  Note that assigning to `*src` counts as a
+/// `*src` can violate memory safety. Note that assigning to `*src` counts as a
 /// use because it will attempt to drop the value at `*src`.
 ///
 /// [`write`] can be used to overwrite data without causing it to be dropped.
@@ -2506,6 +2506,39 @@ pub fn eq<T: ?Sized>(a: *const T, b: *const T) -> bool {
     a == b
 }
 
+/// Hash a raw pointer.
+///
+/// This can be used to hash a `&T` reference (which coerces to `*const T` implicitly)
+/// by its address rather than the value it points to
+/// (which is what the `Hash for &T` implementation does).
+///
+/// # Examples
+///
+/// ```
+/// #![feature(ptr_hash)]
+/// use std::collections::hash_map::DefaultHasher;
+/// use std::hash::{Hash, Hasher};
+/// use std::ptr;
+///
+/// let five = 5;
+/// let five_ref = &five;
+///
+/// let mut hasher = DefaultHasher::new();
+/// ptr::hash(five_ref, &mut hasher);
+/// let actual = hasher.finish();
+///
+/// let mut hasher = DefaultHasher::new();
+/// (five_ref as *const i32).hash(&mut hasher);
+/// let expected = hasher.finish();
+///
+/// assert_eq!(actual, expected);
+/// ```
+#[unstable(feature = "ptr_hash", reason = "newly added", issue = "56286")]
+pub fn hash<T: ?Sized, S: hash::Hasher>(hashee: *const T, into: &mut S) {
+    use hash::Hash;
+    hashee.hash(into);
+}
+
 // Impls for function pointers
 macro_rules! fnptr_impls_safety_abi {
     ($FnTy: ty, $($Arg: ident),*) => {
@@ -2533,6 +2566,13 @@ macro_rules! fnptr_impls_safety_abi {
             #[inline]
             fn cmp(&self, other: &Self) -> Ordering {
                 (*self as usize).cmp(&(*other as usize))
+            }
+        }
+
+        #[stable(feature = "fnptr_impls", since = "1.4.0")]
+        impl<Ret, $($Arg),*> hash::Hash for $FnTy {
+            fn hash<HH: hash::Hasher>(&self, state: &mut HH) {
+                state.write_usize(*self as usize)
             }
         }
 
@@ -2678,14 +2718,22 @@ impl<T: ?Sized> PartialOrd for *mut T {
                      (if you also use #[may_dangle]), Send, and/or Sync")]
 #[doc(hidden)]
 #[repr(transparent)]
+#[rustc_layout_scalar_valid_range_start(1)]
 pub struct Unique<T: ?Sized> {
-    pointer: NonZero<*const T>,
+    pointer: *const T,
     // NOTE: this marker has no consequences for variance, but is necessary
     // for dropck to understand that we logically own a `T`.
     //
     // For details, see:
     // https://github.com/rust-lang/rfcs/blob/master/text/0769-sound-generic-drop.md#phantom-data
     _marker: PhantomData<T>,
+}
+
+#[unstable(feature = "ptr_internals", issue = "0")]
+impl<T: ?Sized> fmt::Debug for Unique<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Pointer::fmt(&self.as_ptr(), f)
+    }
 }
 
 /// `Unique` pointers are `Send` if `T` is `Send` because the data they
@@ -2729,21 +2777,21 @@ impl<T: ?Sized> Unique<T> {
     ///
     /// `ptr` must be non-null.
     pub const unsafe fn new_unchecked(ptr: *mut T) -> Self {
-        Unique { pointer: NonZero(ptr as _), _marker: PhantomData }
+        Unique { pointer: ptr as _, _marker: PhantomData }
     }
 
     /// Creates a new `Unique` if `ptr` is non-null.
     pub fn new(ptr: *mut T) -> Option<Self> {
         if !ptr.is_null() {
-            Some(Unique { pointer: unsafe { NonZero(ptr as _) }, _marker: PhantomData })
+            Some(unsafe { Unique { pointer: ptr as _, _marker: PhantomData } })
         } else {
             None
         }
     }
 
     /// Acquires the underlying `*mut` pointer.
-    pub fn as_ptr(self) -> *mut T {
-        self.pointer.0 as *mut T
+    pub const fn as_ptr(self) -> *mut T {
+        self.pointer as *mut T
     }
 
     /// Dereferences the content.
@@ -2782,23 +2830,30 @@ impl<T: ?Sized, U: ?Sized> CoerceUnsized<Unique<U>> for Unique<T> where T: Unsiz
 impl<T: ?Sized, U: ?Sized> DispatchFromDyn<Unique<U>> for Unique<T> where T: Unsize<U> { }
 
 #[unstable(feature = "ptr_internals", issue = "0")]
-impl<'a, T: ?Sized> From<&'a mut T> for Unique<T> {
-    fn from(reference: &'a mut T) -> Self {
-        Unique { pointer: unsafe { NonZero(reference as *mut T) }, _marker: PhantomData }
+impl<T: ?Sized> fmt::Pointer for Unique<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Pointer::fmt(&self.as_ptr(), f)
     }
 }
 
 #[unstable(feature = "ptr_internals", issue = "0")]
-impl<'a, T: ?Sized> From<&'a T> for Unique<T> {
-    fn from(reference: &'a T) -> Self {
-        Unique { pointer: unsafe { NonZero(reference as *const T) }, _marker: PhantomData }
+impl<T: ?Sized> From<&mut T> for Unique<T> {
+    fn from(reference: &mut T) -> Self {
+        unsafe { Unique { pointer: reference as *mut T, _marker: PhantomData } }
+    }
+}
+
+#[unstable(feature = "ptr_internals", issue = "0")]
+impl<T: ?Sized> From<&T> for Unique<T> {
+    fn from(reference: &T) -> Self {
+        unsafe { Unique { pointer: reference as *const T, _marker: PhantomData } }
     }
 }
 
 #[unstable(feature = "ptr_internals", issue = "0")]
 impl<'a, T: ?Sized> From<NonNull<T>> for Unique<T> {
     fn from(p: NonNull<T>) -> Self {
-        Unique { pointer: p.pointer, _marker: PhantomData }
+        unsafe { Unique { pointer: p.pointer, _marker: PhantomData } }
     }
 }
 
@@ -2819,10 +2874,21 @@ impl<'a, T: ?Sized> From<NonNull<T>> for Unique<T> {
 /// Usually this won't be necessary; covariance is correct for most safe abstractions,
 /// such as Box, Rc, Arc, Vec, and LinkedList. This is the case because they
 /// provide a public API that follows the normal shared XOR mutable rules of Rust.
+///
+/// Notice that `NonNull<T>` has a `From` instance for `&T`. However, this does
+/// not change the fact that mutating through a (pointer derived from a) shared
+/// reference is undefined behavior unless the mutation happens inside an
+/// [`UnsafeCell<T>`]. The same goes for creating a mutable reference from a shared
+/// reference. When using this `From` instance without an `UnsafeCell<T>`,
+/// it is your responsibility to ensure that `as_mut` is never called, and `as_ptr`
+/// is never used for mutation.
+///
+/// [`UnsafeCell<T>`]: ../cell/struct.UnsafeCell.html
 #[stable(feature = "nonnull", since = "1.25.0")]
 #[repr(transparent)]
+#[rustc_layout_scalar_valid_range_start(1)]
 pub struct NonNull<T: ?Sized> {
-    pointer: NonZero<*const T>,
+    pointer: *const T,
 }
 
 /// `NonNull` pointers are not `Send` because the data they reference may be aliased.
@@ -2847,7 +2913,8 @@ impl<T: Sized> NonNull<T> {
     /// some other means.
     #[stable(feature = "nonnull", since = "1.25.0")]
     #[inline]
-    pub fn dangling() -> Self {
+    #[cfg_attr(not(stage0), rustc_const_unstable(feature = "const_ptr_nonnull"))]
+    pub const fn dangling() -> Self {
         unsafe {
             let ptr = mem::align_of::<T>() as *mut T;
             NonNull::new_unchecked(ptr)
@@ -2864,7 +2931,7 @@ impl<T: ?Sized> NonNull<T> {
     #[stable(feature = "nonnull", since = "1.25.0")]
     #[inline]
     pub const unsafe fn new_unchecked(ptr: *mut T) -> Self {
-        NonNull { pointer: NonZero(ptr as _) }
+        NonNull { pointer: ptr as _ }
     }
 
     /// Creates a new `NonNull` if `ptr` is non-null.
@@ -2882,7 +2949,7 @@ impl<T: ?Sized> NonNull<T> {
     #[stable(feature = "nonnull", since = "1.25.0")]
     #[inline]
     pub const fn as_ptr(self) -> *mut T {
-        self.pointer.0 as *mut T
+        self.pointer as *mut T
     }
 
     /// Dereferences the content.
@@ -2910,7 +2977,8 @@ impl<T: ?Sized> NonNull<T> {
     /// Cast to a pointer of another type
     #[stable(feature = "nonnull_cast", since = "1.27.0")]
     #[inline]
-    pub fn cast<U>(self) -> NonNull<U> {
+    #[cfg_attr(not(stage0), rustc_const_unstable(feature = "const_ptr_nonnull"))]
+    pub const fn cast<U>(self) -> NonNull<U> {
         unsafe {
             NonNull::new_unchecked(self.as_ptr() as *mut U)
         }
@@ -2932,6 +3000,20 @@ impl<T: ?Sized, U: ?Sized> CoerceUnsized<NonNull<U>> for NonNull<T> where T: Uns
 
 #[unstable(feature = "dispatch_from_dyn", issue = "0")]
 impl<T: ?Sized, U: ?Sized> DispatchFromDyn<NonNull<U>> for NonNull<T> where T: Unsize<U> { }
+
+#[stable(feature = "nonnull", since = "1.25.0")]
+impl<T: ?Sized> fmt::Debug for NonNull<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Pointer::fmt(&self.as_ptr(), f)
+    }
+}
+
+#[stable(feature = "nonnull", since = "1.25.0")]
+impl<T: ?Sized> fmt::Pointer for NonNull<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Pointer::fmt(&self.as_ptr(), f)
+    }
+}
 
 #[stable(feature = "nonnull", since = "1.25.0")]
 impl<T: ?Sized> Eq for NonNull<T> {}
@@ -2960,26 +3042,34 @@ impl<T: ?Sized> PartialOrd for NonNull<T> {
     }
 }
 
+#[stable(feature = "nonnull", since = "1.25.0")]
+impl<T: ?Sized> hash::Hash for NonNull<T> {
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.as_ptr().hash(state)
+    }
+}
+
 #[unstable(feature = "ptr_internals", issue = "0")]
 impl<T: ?Sized> From<Unique<T>> for NonNull<T> {
     #[inline]
     fn from(unique: Unique<T>) -> Self {
-        NonNull { pointer: unique.pointer }
+        unsafe { NonNull { pointer: unique.pointer } }
     }
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<'a, T: ?Sized> From<&'a mut T> for NonNull<T> {
+impl<T: ?Sized> From<&mut T> for NonNull<T> {
     #[inline]
-    fn from(reference: &'a mut T) -> Self {
-        NonNull { pointer: unsafe { NonZero(reference as *mut T) } }
+    fn from(reference: &mut T) -> Self {
+        unsafe { NonNull { pointer: reference as *mut T } }
     }
 }
 
 #[stable(feature = "nonnull", since = "1.25.0")]
-impl<'a, T: ?Sized> From<&'a T> for NonNull<T> {
+impl<T: ?Sized> From<&T> for NonNull<T> {
     #[inline]
-    fn from(reference: &'a T) -> Self {
-        NonNull { pointer: unsafe { NonZero(reference as *const T) } }
+    fn from(reference: &T) -> Self {
+        unsafe { NonNull { pointer: reference as *const T } }
     }
 }

@@ -282,7 +282,7 @@ use ops::{Deref, DerefMut, Receiver, CoerceUnsized, DispatchFromDyn};
 #[lang = "pin"]
 #[fundamental]
 #[repr(transparent)]
-#[derive(Copy, Clone, Eq, Ord)]
+#[derive(Copy, Clone, Hash, Eq, Ord)]
 pub struct Pin<P> {
     pointer: P,
 }

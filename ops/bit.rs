@@ -1,13 +1,3 @@
-// Copyright 2012 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 /// The unary logical negation operator `!`.
 ///
 /// # Examples
@@ -27,7 +17,7 @@
 /// impl Not for Answer {
 ///     type Output = Answer;
 ///
-///     fn not(self) -> Answer {
+///     fn not(self) -> Self::Output {
 ///         match self {
 ///             Answer::Yes => Answer::No,
 ///             Answer::No => Answer::Yes
@@ -85,7 +75,7 @@ not_impl! { bool usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 ///     type Output = Self;
 ///
 ///     // rhs is the "right-hand side" of the expression `a & b`
-///     fn bitand(self, rhs: Self) -> Self {
+///     fn bitand(self, rhs: Self) -> Self::Output {
 ///         Scalar(self.0 & rhs.0)
 ///     }
 /// }
@@ -107,7 +97,7 @@ not_impl! { bool usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 /// impl BitAnd for BooleanVector {
 ///     type Output = Self;
 ///
-///     fn bitand(self, BooleanVector(rhs): Self) -> Self {
+///     fn bitand(self, BooleanVector(rhs): Self) -> Self::Output {
 ///         let BooleanVector(lhs) = self;
 ///         assert_eq!(lhs.len(), rhs.len());
 ///         BooleanVector(lhs.iter().zip(rhs.iter()).map(|(x, y)| *x && *y).collect())
@@ -191,7 +181,7 @@ bitand_impl! { bool usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 /// impl BitOr for BooleanVector {
 ///     type Output = Self;
 ///
-///     fn bitor(self, BooleanVector(rhs): Self) -> Self {
+///     fn bitor(self, BooleanVector(rhs): Self) -> Self::Output {
 ///         let BooleanVector(lhs) = self;
 ///         assert_eq!(lhs.len(), rhs.len());
 ///         BooleanVector(lhs.iter().zip(rhs.iter()).map(|(x, y)| *x || *y).collect())
@@ -253,7 +243,7 @@ bitor_impl! { bool usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 ///     type Output = Self;
 ///
 ///     // rhs is the "right-hand side" of the expression `a ^ b`
-///     fn bitxor(self, rhs: Self) -> Self {
+///     fn bitxor(self, rhs: Self) -> Self::Output {
 ///         Scalar(self.0 ^ rhs.0)
 ///     }
 /// }
@@ -275,7 +265,7 @@ bitor_impl! { bool usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 /// impl BitXor for BooleanVector {
 ///     type Output = Self;
 ///
-///     fn bitxor(self, BooleanVector(rhs): Self) -> Self {
+///     fn bitxor(self, BooleanVector(rhs): Self) -> Self::Output {
 ///         let BooleanVector(lhs) = self;
 ///         assert_eq!(lhs.len(), rhs.len());
 ///         BooleanVector(lhs.iter()
@@ -365,7 +355,7 @@ bitxor_impl! { bool usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 /// impl<T: Clone> Shl<usize> for SpinVector<T> {
 ///     type Output = Self;
 ///
-///     fn shl(self, rhs: usize) -> SpinVector<T> {
+///     fn shl(self, rhs: usize) -> Self::Output {
 ///         // Rotate the vector by `rhs` places.
 ///         let (a, b) = self.vec.split_at(rhs);
 ///         let mut spun_vector: Vec<T> = vec![];
@@ -474,7 +464,7 @@ shl_impl_all! { u8 u16 u32 u64 u128 usize i8 i16 i32 i64 isize i128 }
 /// impl<T: Clone> Shr<usize> for SpinVector<T> {
 ///     type Output = Self;
 ///
-///     fn shr(self, rhs: usize) -> SpinVector<T> {
+///     fn shr(self, rhs: usize) -> Self::Output {
 ///         // Rotate the vector by `rhs` places.
 ///         let (a, b) = self.vec.split_at(self.vec.len() - rhs);
 ///         let mut spun_vector: Vec<T> = vec![];

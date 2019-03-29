@@ -1,37 +1,22 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Functionality for ordering and comparison.
 //!
-//! This module defines both [`PartialOrd`] and [`PartialEq`] traits which are used
-//! by the compiler to implement comparison operators. Rust programs may
-//! implement [`PartialOrd`] to overload the `<`, `<=`, `>`, and `>=` operators,
-//! and may implement [`PartialEq`] to overload the `==` and `!=` operators.
+//! This module contains various tools for ordering and comparing values. In
+//! summary:
 //!
-//! [`PartialOrd`]: trait.PartialOrd.html
-//! [`PartialEq`]: trait.PartialEq.html
+//! * [`Eq`] and [`PartialEq`] are traits that allow you to define total and
+//!   partial equality between values, respectively. Implementing them overloads
+//!   the `==` and `!=` operators.
+//! * [`Ord`] and [`PartialOrd`] are traits that allow you to define total and
+//!   partial orderings between values, respectively. Implementing them overloads
+//!   the `<`, `<=`, `>`, and `>=` operators.
+//! * [`Ordering`][cmp::Ordering] is an enum returned by the
+//!   main functions of [`Ord`] and [`PartialOrd`], and describes an ordering.
+//! * [`Reverse`][cmp::Reverse] is a struct that allows you to easily reverse
+//!   an ordering.
+//! * [`max`][cmp::max] and [`min`][cmp::min] are functions that build off of
+//!   [`Ord`] and allow you to find the maximum or minimum of two values.
 //!
-//! # Examples
-//!
-//! ```
-//! let x: u32 = 0;
-//! let y: u32 = 1;
-//!
-//! // these two lines are equivalent
-//! assert_eq!(x < y, true);
-//! assert_eq!(x.lt(&y), true);
-//!
-//! // these two lines are also equivalent
-//! assert_eq!(x == y, false);
-//! assert_eq!(x.eq(&y), false);
-//! ```
+//! For more details, see the respective documentation of each item in the list.
 
 #![stable(feature = "rust1", since = "1.0.0")]
 
@@ -41,7 +26,7 @@ use self::Ordering::*;
 /// relations](http://en.wikipedia.org/wiki/Partial_equivalence_relation).
 ///
 /// This trait allows for partial equality, for types that do not have a full
-/// equivalence relation.  For example, in floating point numbers `NaN != NaN`,
+/// equivalence relation. For example, in floating point numbers `NaN != NaN`,
 /// so floating point types implement `PartialEq` but not `Eq`.
 ///
 /// Formally, the equality must be (for all `a`, `b` and `c`):
@@ -87,7 +72,7 @@ use self::Ordering::*;
 /// }
 ///
 /// impl PartialEq for Book {
-///     fn eq(&self, other: &Book) -> bool {
+///     fn eq(&self, other: &Self) -> bool {
 ///         self.isbn == other.isbn
 ///     }
 /// }
@@ -106,6 +91,8 @@ use self::Ordering::*;
 /// For example, let's tweak our previous code a bit:
 ///
 /// ```
+/// // The derive implements <BookFormat> == <BookFormat> comparisons
+/// #[derive(PartialEq)]
 /// enum BookFormat {
 ///     Paperback,
 ///     Hardback,
@@ -117,31 +104,34 @@ use self::Ordering::*;
 ///     format: BookFormat,
 /// }
 ///
+/// // Implement <Book> == <BookFormat> comparisons
 /// impl PartialEq<BookFormat> for Book {
 ///     fn eq(&self, other: &BookFormat) -> bool {
-///         match (&self.format, other) {
-///            (BookFormat::Paperback, BookFormat::Paperback) => true,
-///            (BookFormat::Hardback,  BookFormat::Hardback)  => true,
-///            (BookFormat::Ebook,     BookFormat::Ebook)     => true,
-///            (_, _) => false,
-///         }
+///         self.format == *other
+///     }
+/// }
+///
+/// // Implement <BookFormat> == <Book> comparisons
+/// impl PartialEq<Book> for BookFormat {
+///     fn eq(&self, other: &Book) -> bool {
+///         *self == other.format
 ///     }
 /// }
 ///
 /// let b1 = Book { isbn: 3, format: BookFormat::Paperback };
 ///
 /// assert!(b1 == BookFormat::Paperback);
-/// assert!(b1 != BookFormat::Ebook);
+/// assert!(BookFormat::Ebook != b1);
 /// ```
 ///
 /// By changing `impl PartialEq for Book` to `impl PartialEq<BookFormat> for Book`,
-/// we've changed what type we can use on the right side of the `==` operator.
-/// This lets us use it in the `assert!` statements at the bottom.
+/// we allow `BookFormat`s to be compared with `Book`s.
 ///
 /// You can also combine these implementations to let the `==` operator work with
 /// two different types:
 ///
 /// ```
+/// #[derive(PartialEq)]
 /// enum BookFormat {
 ///     Paperback,
 ///     Hardback,
@@ -155,12 +145,13 @@ use self::Ordering::*;
 ///
 /// impl PartialEq<BookFormat> for Book {
 ///     fn eq(&self, other: &BookFormat) -> bool {
-///         match (&self.format, other) {
-///            (&BookFormat::Paperback, &BookFormat::Paperback) => true,
-///            (&BookFormat::Hardback,  &BookFormat::Hardback)  => true,
-///            (&BookFormat::Ebook,     &BookFormat::Ebook)     => true,
-///            (_, _) => false,
-///         }
+///         self.format == *other
+///     }
+/// }
+///
+/// impl PartialEq<Book> for BookFormat {
+///     fn eq(&self, other: &Book) -> bool {
+///         *self == other.format
 ///     }
 /// }
 ///
@@ -174,7 +165,7 @@ use self::Ordering::*;
 /// let b2 = Book { isbn: 3, format: BookFormat::Ebook };
 ///
 /// assert!(b1 == BookFormat::Paperback);
-/// assert!(b1 != BookFormat::Ebook);
+/// assert!(BookFormat::Ebook != b1);
 /// assert!(b1 == b2);
 /// ```
 ///
@@ -242,7 +233,7 @@ pub trait PartialEq<Rhs: ?Sized = Self> {
 ///     format: BookFormat,
 /// }
 /// impl PartialEq for Book {
-///     fn eq(&self, other: &Book) -> bool {
+///     fn eq(&self, other: &Self) -> bool {
 ///         self.isbn == other.isbn
 ///     }
 /// }
@@ -292,7 +283,7 @@ pub struct AssertParamIsEq<T: Eq + ?Sized> { _field: ::marker::PhantomData<T> }
 /// let result = 2.cmp(&1);
 /// assert_eq!(Ordering::Greater, result);
 /// ```
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug, Hash)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub enum Ordering {
     /// An ordering where a compared value is less [than another].
@@ -433,7 +424,7 @@ impl Ordering {
 /// v.sort_by_key(|&num| (num > 3, Reverse(num)));
 /// assert_eq!(v, vec![3, 2, 1, 6, 5, 4]);
 /// ```
-#[derive(PartialEq, Eq, Copy, Clone, Default)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, Default, Hash)]
 #[stable(feature = "reverse_cmp_key", since = "1.19.0")]
 pub struct Reverse<T>(#[stable(feature = "reverse_cmp_key", since = "1.19.0")] pub T);
 
@@ -482,9 +473,11 @@ impl<T: Ord> Ord for Reverse<T> {
 /// Then you must define an implementation for `cmp()`. You may find it useful to use
 /// `cmp()` on your type's fields.
 ///
-/// Implementations of `PartialEq`, `PartialOrd`, and `Ord` *must* agree with each other. It's
-/// easy to accidentally make them disagree by deriving some of the traits and manually
-/// implementing others.
+/// Implementations of `PartialEq`, `PartialOrd`, and `Ord` *must*
+/// agree with each other. That is, `a.cmp(b) == Ordering::Equal` if
+/// and only if `a == b` and `Some(a.cmp(b)) == a.partial_cmp(b)` for
+/// all `a` and `b`. It's easy to accidentally make them disagree by
+/// deriving some of the traits and manually implementing others.
 ///
 /// Here's an example where you want to sort people by height only, disregarding `id`
 /// and `name`:
@@ -500,19 +493,19 @@ impl<T: Ord> Ord for Reverse<T> {
 /// }
 ///
 /// impl Ord for Person {
-///     fn cmp(&self, other: &Person) -> Ordering {
+///     fn cmp(&self, other: &Self) -> Ordering {
 ///         self.height.cmp(&other.height)
 ///     }
 /// }
 ///
 /// impl PartialOrd for Person {
-///     fn partial_cmp(&self, other: &Person) -> Option<Ordering> {
+///     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 ///         Some(self.cmp(other))
 ///     }
 /// }
 ///
 /// impl PartialEq for Person {
-///     fn eq(&self, other: &Person) -> bool {
+///     fn eq(&self, other: &Self) -> bool {
 ///         self.height == other.height
 ///     }
 /// }
@@ -573,6 +566,32 @@ pub trait Ord: Eq + PartialOrd<Self> {
     fn min(self, other: Self) -> Self
     where Self: Sized {
         if self <= other { self } else { other }
+    }
+
+    /// Returns max if self is greater than max, and min if self is less than min.
+    /// Otherwise this will return self.  Panics if min > max.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(clamp)]
+    ///
+    /// assert!((-3).clamp(-2, 1) == -2);
+    /// assert!(0.clamp(-2, 1) == 0);
+    /// assert!(2.clamp(-2, 1) == 1);
+    /// ```
+    #[unstable(feature = "clamp", issue = "44095")]
+    fn clamp(self, min: Self, max: Self) -> Self
+    where Self: Sized {
+        assert!(min <= max);
+        if self < min {
+            min
+        }
+        else if self > max {
+            max
+        } else {
+            self
+        }
     }
 }
 
@@ -672,13 +691,13 @@ impl PartialOrd for Ordering {
 /// }
 ///
 /// impl PartialOrd for Person {
-///     fn partial_cmp(&self, other: &Person) -> Option<Ordering> {
+///     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 ///         self.height.partial_cmp(&other.height)
 ///     }
 /// }
 ///
 /// impl PartialEq for Person {
-///     fn eq(&self, other: &Person) -> bool {
+///     fn eq(&self, other: &Self) -> bool {
 ///         self.height == other.height
 ///     }
 /// }
@@ -1011,26 +1030,26 @@ mod impls {
     // & pointers
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<'a, 'b, A: ?Sized, B: ?Sized> PartialEq<&'b B> for &'a A where A: PartialEq<B> {
+    impl<A: ?Sized, B: ?Sized> PartialEq<&B> for &A where A: PartialEq<B> {
         #[inline]
-        fn eq(&self, other: & &'b B) -> bool { PartialEq::eq(*self, *other) }
+        fn eq(&self, other: & &B) -> bool { PartialEq::eq(*self, *other) }
         #[inline]
-        fn ne(&self, other: & &'b B) -> bool { PartialEq::ne(*self, *other) }
+        fn ne(&self, other: & &B) -> bool { PartialEq::ne(*self, *other) }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<'a, 'b, A: ?Sized, B: ?Sized> PartialOrd<&'b B> for &'a A where A: PartialOrd<B> {
+    impl<A: ?Sized, B: ?Sized> PartialOrd<&B> for &A where A: PartialOrd<B> {
         #[inline]
-        fn partial_cmp(&self, other: &&'b B) -> Option<Ordering> {
+        fn partial_cmp(&self, other: &&B) -> Option<Ordering> {
             PartialOrd::partial_cmp(*self, *other)
         }
         #[inline]
-        fn lt(&self, other: & &'b B) -> bool { PartialOrd::lt(*self, *other) }
+        fn lt(&self, other: & &B) -> bool { PartialOrd::lt(*self, *other) }
         #[inline]
-        fn le(&self, other: & &'b B) -> bool { PartialOrd::le(*self, *other) }
+        fn le(&self, other: & &B) -> bool { PartialOrd::le(*self, *other) }
         #[inline]
-        fn ge(&self, other: & &'b B) -> bool { PartialOrd::ge(*self, *other) }
+        fn ge(&self, other: & &B) -> bool { PartialOrd::ge(*self, *other) }
         #[inline]
-        fn gt(&self, other: & &'b B) -> bool { PartialOrd::gt(*self, *other) }
+        fn gt(&self, other: & &B) -> bool { PartialOrd::gt(*self, *other) }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
     impl<A: ?Sized> Ord for &A where A: Ord {
@@ -1043,26 +1062,26 @@ mod impls {
     // &mut pointers
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<'a, 'b, A: ?Sized, B: ?Sized> PartialEq<&'b mut B> for &'a mut A where A: PartialEq<B> {
+    impl<A: ?Sized, B: ?Sized> PartialEq<&mut B> for &mut A where A: PartialEq<B> {
         #[inline]
-        fn eq(&self, other: &&'b mut B) -> bool { PartialEq::eq(*self, *other) }
+        fn eq(&self, other: &&mut B) -> bool { PartialEq::eq(*self, *other) }
         #[inline]
-        fn ne(&self, other: &&'b mut B) -> bool { PartialEq::ne(*self, *other) }
+        fn ne(&self, other: &&mut B) -> bool { PartialEq::ne(*self, *other) }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<'a, 'b, A: ?Sized, B: ?Sized> PartialOrd<&'b mut B> for &'a mut A where A: PartialOrd<B> {
+    impl<A: ?Sized, B: ?Sized> PartialOrd<&mut B> for &mut A where A: PartialOrd<B> {
         #[inline]
-        fn partial_cmp(&self, other: &&'b mut B) -> Option<Ordering> {
+        fn partial_cmp(&self, other: &&mut B) -> Option<Ordering> {
             PartialOrd::partial_cmp(*self, *other)
         }
         #[inline]
-        fn lt(&self, other: &&'b mut B) -> bool { PartialOrd::lt(*self, *other) }
+        fn lt(&self, other: &&mut B) -> bool { PartialOrd::lt(*self, *other) }
         #[inline]
-        fn le(&self, other: &&'b mut B) -> bool { PartialOrd::le(*self, *other) }
+        fn le(&self, other: &&mut B) -> bool { PartialOrd::le(*self, *other) }
         #[inline]
-        fn ge(&self, other: &&'b mut B) -> bool { PartialOrd::ge(*self, *other) }
+        fn ge(&self, other: &&mut B) -> bool { PartialOrd::ge(*self, *other) }
         #[inline]
-        fn gt(&self, other: &&'b mut B) -> bool { PartialOrd::gt(*self, *other) }
+        fn gt(&self, other: &&mut B) -> bool { PartialOrd::gt(*self, *other) }
     }
     #[stable(feature = "rust1", since = "1.0.0")]
     impl<A: ?Sized> Ord for &mut A where A: Ord {
@@ -1073,18 +1092,18 @@ mod impls {
     impl<A: ?Sized> Eq for &mut A where A: Eq {}
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<'a, 'b, A: ?Sized, B: ?Sized> PartialEq<&'b mut B> for &'a A where A: PartialEq<B> {
+    impl<A: ?Sized, B: ?Sized> PartialEq<&mut B> for &A where A: PartialEq<B> {
         #[inline]
-        fn eq(&self, other: &&'b mut B) -> bool { PartialEq::eq(*self, *other) }
+        fn eq(&self, other: &&mut B) -> bool { PartialEq::eq(*self, *other) }
         #[inline]
-        fn ne(&self, other: &&'b mut B) -> bool { PartialEq::ne(*self, *other) }
+        fn ne(&self, other: &&mut B) -> bool { PartialEq::ne(*self, *other) }
     }
 
     #[stable(feature = "rust1", since = "1.0.0")]
-    impl<'a, 'b, A: ?Sized, B: ?Sized> PartialEq<&'b B> for &'a mut A where A: PartialEq<B> {
+    impl<A: ?Sized, B: ?Sized> PartialEq<&B> for &mut A where A: PartialEq<B> {
         #[inline]
-        fn eq(&self, other: &&'b B) -> bool { PartialEq::eq(*self, *other) }
+        fn eq(&self, other: &&B) -> bool { PartialEq::eq(*self, *other) }
         #[inline]
-        fn ne(&self, other: &&'b B) -> bool { PartialEq::ne(*self, *other) }
+        fn ne(&self, other: &&B) -> bool { PartialEq::ne(*self, *other) }
     }
 }
