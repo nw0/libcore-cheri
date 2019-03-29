@@ -1768,3 +1768,220 @@ impl Write for Formatter<'_> {
         write(self.buf, args)
     }
 }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Display::fmt("an error occurred when formatting an argument", f)
+    }
+}
+
+// Implementations of the core formatting traits
+
+macro_rules! fmt_refs {
+    ($($tr:ident),*) => {
+        $(
+        #[stable(feature = "rust1", since = "1.0.0")]
+        impl<T: ?Sized + $tr> $tr for &T {
+            fn fmt(&self, f: &mut Formatter) -> Result { $tr::fmt(&**self, f) }
+        }
+        #[stable(feature = "rust1", since = "1.0.0")]
+        impl<T: ?Sized + $tr> $tr for &mut T {
+            fn fmt(&self, f: &mut Formatter) -> Result { $tr::fmt(&**self, f) }
+        }
+        )*
+    }
+}
+
+fmt_refs! { Debug, Display, Octal, Binary, LowerHex, UpperHex, LowerExp, UpperExp }
+
+#[unstable(feature = "never_type", issue = "35121")]
+impl Debug for ! {
+    fn fmt(&self, _: &mut Formatter) -> Result {
+        *self
+    }
+}
+
+#[unstable(feature = "never_type", issue = "35121")]
+impl Display for ! {
+    fn fmt(&self, _: &mut Formatter) -> Result {
+        *self
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Debug for bool {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Display::fmt(self, f)
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Display for bool {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Display::fmt(if *self { "true" } else { "false" }, f)
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Debug for str {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.write_char('"')?;
+        let mut from = 0;
+        for (i, c) in self.char_indices() {
+            let esc = c.escape_debug();
+            // If char needs escaping, flush backlog so far and write, else skip
+            if esc.len() != 1 {
+                f.write_str(&self[from..i])?;
+                for c in esc {
+                    f.write_char(c)?;
+                }
+                from = i + c.len_utf8();
+            }
+        }
+        f.write_str(&self[from..])?;
+        f.write_char('"')
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Display for str {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.pad(self)
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Debug for char {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.write_char('\'')?;
+        for c in self.escape_debug() {
+            f.write_char(c)?
+        }
+        f.write_char('\'')
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Display for char {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        if f.width.is_none() && f.precision.is_none() {
+            f.write_char(*self)
+        } else {
+            f.pad(self.encode_utf8(&mut [0; 4]))
+        }
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Pointer for *const T {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let old_width = f.width;
+        let old_flags = f.flags;
+
+        // The alternate flag is already treated by LowerHex as being special-
+        // it denotes whether to prefix with 0x. We use it to work out whether
+        // or not to zero extend, and then unconditionally set it to get the
+        // prefix.
+        if f.alternate() {
+            f.flags |= 1 << (FlagV1::SignAwareZeroPad as u32);
+
+            if let None = f.width {
+                f.width = Some(((mem::size_of::<usize>() * 8) / 4) + 2);
+            }
+        }
+        f.flags |= 1 << (FlagV1::Alternate as u32);
+
+        let ret = LowerHex::fmt(&(*self as *const () as usize), f);
+
+        f.width = old_width;
+        f.flags = old_flags;
+
+        ret
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Pointer for *mut T {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Pointer::fmt(&(*self as *const T), f)
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Pointer for &T {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Pointer::fmt(&(*self as *const T), f)
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Pointer for &mut T {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Pointer::fmt(&(&**self as *const T), f)
+    }
+}
+
+// Implementation of Display/Debug for various core types
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Debug for *const T {
+    fn fmt(&self, f: &mut Formatter) -> Result { Pointer::fmt(self, f) }
+}
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Debug for *mut T {
+    fn fmt(&self, f: &mut Formatter) -> Result { Pointer::fmt(self, f) }
+}
+
+macro_rules! peel {
+    ($name:ident, $($other:ident,)*) => (tuple! { $($other,)* })
+}
+
+macro_rules! tuple {
+    () => ();
+    ( $($name:ident,)+ ) => (
+        #[stable(feature = "rust1", since = "1.0.0")]
+        impl<$($name:Debug),*> Debug for ($($name,)*) where last_type!($($name,)+): ?Sized {
+            #[allow(non_snake_case, unused_assignments)]
+            fn fmt(&self, f: &mut Formatter) -> Result {
+                let mut builder = f.debug_tuple("");
+                let ($(ref $name,)*) = *self;
+                $(
+                    builder.field(&$name);
+                )*
+
+                builder.finish()
+            }
+        }
+        peel! { $($name,)* }
+    )
+}
+
+macro_rules! last_type {
+    ($a:ident,) => { $a };
+    ($a:ident, $($rest_a:ident,)+) => { last_type!($($rest_a,)+) };
+}
+
+tuple! { T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: Debug> Debug for [T] {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Debug for () {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.pad("()")
+    }
+}
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized> Debug for PhantomData<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.pad("PhantomData")
+    }
+}

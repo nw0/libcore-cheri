@@ -341,6 +341,19 @@ impl FusedIterator for EscapeDefault {}
 #[derive(Clone)]
 pub struct EscapeDebug(EscapeDefault);
 
+#[stable(feature = "char_escape_debug", since = "1.20.0")]
+impl Iterator for EscapeDebug {
+    type Item = char;
+    fn next(&mut self) -> Option<char> { self.0.next() }
+    fn size_hint(&self) -> (usize, Option<usize>) { self.0.size_hint() }
+}
+
+#[stable(feature = "char_escape_debug", since = "1.20.0")]
+impl ExactSizeIterator for EscapeDebug { }
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl FusedIterator for EscapeDebug {}
+
 /// Returns an iterator that yields the lowercase equivalent of a `char`.
 ///
 /// This `struct` is created by the [`to_lowercase`] method on [`char`]. See
