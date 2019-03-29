@@ -13,10 +13,25 @@
 #![stable(feature = "rust1", since = "1.0.0")]
 
 use convert::TryFrom;
+use fmt;
 use intrinsics;
 use mem;
 use nonzero::NonZero;
 use ops;
+
+macro_rules! impl_nonzero_fmt {
+    ( ( $( $Trait: ident ),+ ) for $Ty: ident ) => {
+        $(
+            #[stable(feature = "nonzero", since = "1.28.0")]
+            impl fmt::$Trait for $Ty {
+                #[inline]
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    self.get().fmt(f)
+                }
+            }
+        )+
+    }
+}
 
 macro_rules! doc_comment {
     ($x:expr, $($tt:tt)*) => {
@@ -82,6 +97,10 @@ assert_eq!(size_of::<Option<std::num::", stringify!($Ty), ">>(), size_of::<", st
                 fn from(nonzero: $Ty) -> Self {
                     nonzero.0 .0
                 }
+            }
+
+            impl_nonzero_fmt! {
+                (Debug, Display, Binary, Octal, LowerHex, UpperHex) for $Ty
             }
         )+
     }

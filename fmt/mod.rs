@@ -7,6 +7,7 @@ use result;
 use slice;
 use str;
 
+mod num;
 mod builders;
 
 #[stable(feature = "fmt_flags_align", since = "1.28.0")]
