@@ -133,7 +133,10 @@ pub mod convert;
 pub mod borrow;
 
 /* Core types and methods on primitives */
+pub mod any;
+pub mod array;
 pub mod ascii;
+pub mod sync;
 pub mod cell;
 pub mod char;
 pub mod panic;
@@ -149,6 +152,7 @@ pub mod slice;
 pub mod str;
 pub mod hash;
 pub mod fmt;
+pub mod time;
 
 pub mod unicode;
 
