@@ -1,20 +1,11 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! UTF-8 and UTF-16 decoding iterators
 
+use fmt;
 use super::from_u32_unchecked;
 
 /// An iterator that decodes UTF-16 encoded code points from an iterator of `u16`s.
 #[stable(feature = "decode_utf16", since = "1.9.0")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DecodeUtf16<I>
     where I: Iterator<Item = u16>
 {
@@ -24,12 +15,12 @@ pub struct DecodeUtf16<I>
 
 /// An error that can be returned when decoding UTF-16 code points.
 #[stable(feature = "decode_utf16", since = "1.9.0")]
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DecodeUtf16Error {
     code: u16,
 }
 
-/// Create an iterator over the UTF-16 encoded code points in `iter`,
+/// Creates an iterator over the UTF-16 encoded code points in `iter`,
 /// returning unpaired surrogates as `Err`s.
 ///
 /// # Examples
@@ -131,5 +122,12 @@ impl DecodeUtf16Error {
     #[stable(feature = "decode_utf16", since = "1.9.0")]
     pub fn unpaired_surrogate(&self) -> u16 {
         self.code
+    }
+}
+
+#[stable(feature = "decode_utf16", since = "1.9.0")]
+impl fmt::Display for DecodeUtf16Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unpaired surrogate found: {:x}", self.code)
     }
 }

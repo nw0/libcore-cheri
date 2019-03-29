@@ -1,13 +1,3 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! A character type.
 //!
 //! The `char` type represents a single character. More specifically, since
@@ -51,6 +41,7 @@ pub use unicode::tables::UNICODE_VERSION;
 #[unstable(feature = "unicode_version", issue = "49726")]
 pub use unicode::version::UnicodeVersion;
 
+use fmt::{self, Write};
 use iter::FusedIterator;
 
 // UTF-8 ranges and tags for encoding characters
@@ -123,7 +114,7 @@ pub const REPLACEMENT_CHARACTER: char = '\u{FFFD}';
 ///
 /// [`escape_unicode`]: ../../std/primitive.char.html#method.escape_unicode
 /// [`char`]: ../../std/primitive.char.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct EscapeUnicode {
     c: char,
@@ -138,7 +129,7 @@ pub struct EscapeUnicode {
 // The enum values are ordered so that their representation is the
 // same as the remaining length (besides the hexadecimal digits). This
 // likely makes `len()` a single load from memory) and inline-worth.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum EscapeUnicodeState {
     Done,
     RightBrace,
@@ -227,6 +218,16 @@ impl ExactSizeIterator for EscapeUnicode {
 #[stable(feature = "fused", since = "1.26.0")]
 impl FusedIterator for EscapeUnicode {}
 
+#[stable(feature = "char_struct_display", since = "1.16.0")]
+impl fmt::Display for EscapeUnicode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for c in self.clone() {
+            f.write_char(c)?;
+        }
+        Ok(())
+    }
+}
+
 /// An iterator that yields the literal escape code of a `char`.
 ///
 /// This `struct` is created by the [`escape_default`] method on [`char`]. See
@@ -234,13 +235,13 @@ impl FusedIterator for EscapeUnicode {}
 ///
 /// [`escape_default`]: ../../std/primitive.char.html#method.escape_default
 /// [`char`]: ../../std/primitive.char.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct EscapeDefault {
     state: EscapeDefaultState
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum EscapeDefaultState {
     Done,
     Char(char),
@@ -330,6 +331,16 @@ impl ExactSizeIterator for EscapeDefault {
 #[stable(feature = "fused", since = "1.26.0")]
 impl FusedIterator for EscapeDefault {}
 
+#[stable(feature = "char_struct_display", since = "1.16.0")]
+impl fmt::Display for EscapeDefault {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for c in self.clone() {
+            f.write_char(c)?;
+        }
+        Ok(())
+    }
+}
+
 /// An iterator that yields the literal escape code of a `char`.
 ///
 /// This `struct` is created by the [`escape_debug`] method on [`char`]. See its
@@ -338,7 +349,7 @@ impl FusedIterator for EscapeDefault {}
 /// [`escape_debug`]: ../../std/primitive.char.html#method.escape_debug
 /// [`char`]: ../../std/primitive.char.html
 #[stable(feature = "char_escape_debug", since = "1.20.0")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EscapeDebug(EscapeDefault);
 
 #[stable(feature = "char_escape_debug", since = "1.20.0")]
@@ -354,6 +365,13 @@ impl ExactSizeIterator for EscapeDebug { }
 #[stable(feature = "fused", since = "1.26.0")]
 impl FusedIterator for EscapeDebug {}
 
+#[stable(feature = "char_escape_debug", since = "1.20.0")]
+impl fmt::Display for EscapeDebug {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
 /// Returns an iterator that yields the lowercase equivalent of a `char`.
 ///
 /// This `struct` is created by the [`to_lowercase`] method on [`char`]. See
@@ -362,8 +380,25 @@ impl FusedIterator for EscapeDebug {}
 /// [`to_lowercase`]: ../../std/primitive.char.html#method.to_lowercase
 /// [`char`]: ../../std/primitive.char.html
 #[stable(feature = "rust1", since = "1.0.0")]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ToLowercase(CaseMappingIter);
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Iterator for ToLowercase {
+    type Item = char;
+    fn next(&mut self) -> Option<char> {
+        self.0.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl FusedIterator for ToLowercase {}
+
+#[stable(feature = "exact_size_case_mapping_iter", since = "1.35.0")]
+impl ExactSizeIterator for ToLowercase {}
 
 /// Returns an iterator that yields the uppercase equivalent of a `char`.
 ///
@@ -373,10 +408,27 @@ pub struct ToLowercase(CaseMappingIter);
 /// [`to_uppercase`]: ../../std/primitive.char.html#method.to_uppercase
 /// [`char`]: ../../std/primitive.char.html
 #[stable(feature = "rust1", since = "1.0.0")]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ToUppercase(CaseMappingIter);
 
-#[derive(Clone)]
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Iterator for ToUppercase {
+    type Item = char;
+    fn next(&mut self) -> Option<char> {
+        self.0.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl FusedIterator for ToUppercase {}
+
+#[stable(feature = "exact_size_case_mapping_iter", since = "1.35.0")]
+impl ExactSizeIterator for ToUppercase {}
+
+#[derive(Debug, Clone)]
 enum CaseMappingIter {
     Three(char, char, char),
     Two(char, char),
@@ -416,5 +468,49 @@ impl Iterator for CaseMappingIter {
             }
             CaseMappingIter::Zero => None,
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = match self {
+            CaseMappingIter::Three(..) => 3,
+            CaseMappingIter::Two(..) => 2,
+            CaseMappingIter::One(_) => 1,
+            CaseMappingIter::Zero => 0,
+        };
+        (size, Some(size))
+    }
+}
+
+impl fmt::Display for CaseMappingIter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CaseMappingIter::Three(a, b, c) => {
+                f.write_char(a)?;
+                f.write_char(b)?;
+                f.write_char(c)
+            }
+            CaseMappingIter::Two(b, c) => {
+                f.write_char(b)?;
+                f.write_char(c)
+            }
+            CaseMappingIter::One(c) => {
+                f.write_char(c)
+            }
+            CaseMappingIter::Zero => Ok(()),
+        }
+    }
+}
+
+#[stable(feature = "char_struct_display", since = "1.16.0")]
+impl fmt::Display for ToLowercase {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+#[stable(feature = "char_struct_display", since = "1.16.0")]
+impl fmt::Display for ToUppercase {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
     }
 }

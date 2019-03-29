@@ -1,17 +1,9 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Character conversions.
 
 use convert::TryFrom;
+use fmt;
 use mem::transmute;
+use str::FromStr;
 use super::MAX;
 
 /// Converts a `u32` to a `char`.
@@ -172,7 +164,7 @@ impl From<u8> for char {
 
 /// An error which can be returned when parsing a char.
 #[stable(feature = "char_from_str", since = "1.20.0")]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseCharError {
     kind: CharErrorKind,
 }
@@ -192,10 +184,37 @@ impl ParseCharError {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum CharErrorKind {
     EmptyString,
     TooManyChars,
+}
+
+#[stable(feature = "char_from_str", since = "1.20.0")]
+impl fmt::Display for ParseCharError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.__description().fmt(f)
+    }
+}
+
+
+#[stable(feature = "char_from_str", since = "1.20.0")]
+impl FromStr for char {
+    type Err = ParseCharError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut chars = s.chars();
+        match (chars.next(), chars.next()) {
+            (None, _) => {
+                Err(ParseCharError { kind: CharErrorKind::EmptyString })
+            },
+            (Some(c), None) => Ok(c),
+            _ => {
+                Err(ParseCharError { kind: CharErrorKind::TooManyChars })
+            }
+        }
+    }
 }
 
 
@@ -215,8 +234,15 @@ impl TryFrom<u32> for char {
 
 /// The error type returned when a conversion from u32 to char fails.
 #[stable(feature = "try_from", since = "1.34.0")]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CharTryFromError(());
+
+#[stable(feature = "try_from", since = "1.34.0")]
+impl fmt::Display for CharTryFromError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        "converted integer out of range for `char`".fmt(f)
+    }
+}
 
 /// Converts a digit in the given radix to a `char`.
 ///
