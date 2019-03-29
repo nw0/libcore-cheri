@@ -7,6 +7,8 @@ use result;
 use slice;
 use str;
 
+mod builders;
+
 #[stable(feature = "fmt_flags_align", since = "1.28.0")]
 /// Possible alignments returned by `Formatter::align`
 pub enum Alignment {
@@ -1081,7 +1083,7 @@ impl<'a> Formatter<'a> {
         }
 
         let prefix = if self.alternate() {
-            width += 1;
+            width += prefix.chars().count();
             Some(prefix)
         } else {
             None
