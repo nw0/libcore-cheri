@@ -4,10 +4,15 @@
 
 #![stable(feature = "rust1", since = "1.0.0")]
 
+use self::pattern::Pattern;
+use self::pattern::{Searcher};
+
 use char;
 use mem;
 use iter::{Map, Cloned, FusedIterator, TrustedLen, Filter};
 use slice::{self, SliceIndex, Split as SliceSplit};
+
+pub mod pattern;
 
 /// A trait to abstract the idea of creating a new instance of a type from a
 /// string.
@@ -1979,6 +1984,53 @@ impl str {
     #[stable(feature = "encode_utf16", since = "1.8.0")]
     pub fn encode_utf16(&self) -> EncodeUtf16 {
         EncodeUtf16 { chars: self.chars(), extra: 0 }
+    }
+
+    /// Returns the byte index of the first character of this string slice that
+    /// matches the pattern.
+    ///
+    /// Returns [`None`] if the pattern doesn't match.
+    ///
+    /// The pattern can be a `&str`, [`char`], or a closure that determines if
+    /// a character matches.
+    ///
+    /// [`None`]: option/enum.Option.html#variant.None
+    ///
+    /// # Examples
+    ///
+    /// Simple patterns:
+    ///
+    /// ```
+    /// let s = "Löwe 老虎 Léopard";
+    ///
+    /// assert_eq!(s.find('L'), Some(0));
+    /// assert_eq!(s.find('é'), Some(14));
+    /// assert_eq!(s.find("Léopard"), Some(13));
+    /// ```
+    ///
+    /// More complex patterns using point-free style and closures:
+    ///
+    /// ```
+    /// let s = "Löwe 老虎 Léopard";
+    ///
+    /// assert_eq!(s.find(char::is_whitespace), Some(5));
+    /// assert_eq!(s.find(char::is_lowercase), Some(1));
+    /// assert_eq!(s.find(|c: char| c.is_whitespace() || c.is_lowercase()), Some(1));
+    /// assert_eq!(s.find(|c: char| (c < 'o') && (c > 'a')), Some(4));
+    /// ```
+    ///
+    /// Not finding the pattern:
+    ///
+    /// ```
+    /// let s = "Löwe 老虎 Léopard";
+    /// let x: &[_] = &['1', '2'];
+    ///
+    /// assert_eq!(s.find(x), None);
+    /// ```
+    #[stable(feature = "rust1", since = "1.0.0")]
+    #[inline]
+    pub fn find<'a, P: Pattern<'a>>(&'a self, pat: P) -> Option<usize> {
+        pat.into_searcher(self).next_match().map(|(i, _)| i)
     }
 
     /// Parses this string slice into another type.
