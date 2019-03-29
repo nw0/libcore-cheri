@@ -1,14 +1,4 @@
-// Copyright 2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
-/// Entry point of thread panic, for details, see std::macros
+/// Entry point of thread panic. For details, see `std::macros`.
 #[macro_export]
 #[allow_internal_unstable(core_panic, __rust_unstable_column)]
 #[stable(feature = "core", since = "1.6.0")]
@@ -433,7 +423,7 @@ macro_rules! writeln {
 /// * Iterators that dynamically terminate.
 ///
 /// If the determination that the code is unreachable proves incorrect, the
-/// program immediately terminates with a [`panic!`].  The function [`unreachable_unchecked`],
+/// program immediately terminates with a [`panic!`]. The function [`unreachable_unchecked`],
 /// which belongs to the [`std::hint`] module, informs the compiler to
 /// optimize the code out of the release version entirely.
 ///
@@ -494,7 +484,7 @@ macro_rules! unreachable {
 /// A standardized placeholder for marking unfinished code.
 ///
 /// This can be useful if you are prototyping and are just looking to have your
-/// code typecheck, or if you're implementing a trait that requires multiple
+/// code type-check, or if you're implementing a trait that requires multiple
 /// methods, and you're only planning on using one of them.
 ///
 /// # Panics
@@ -546,6 +536,82 @@ macro_rules! unreachable {
 macro_rules! unimplemented {
     () => (panic!("not yet implemented"));
     ($($arg:tt)+) => (panic!("not yet implemented: {}", format_args!($($arg)*)));
+}
+
+/// A standardized placeholder for marking unfinished code.
+///
+/// This can be useful if you are prototyping and are just looking to have your
+/// code typecheck. `todo!` works exactly like `unimplemented!`, there only
+/// difference between the two macros is the name.
+///
+/// # Panics
+///
+/// This will always [panic!](macro.panic.html)
+///
+/// # Examples
+///
+/// Here's an example of some in-progress code. We have a trait `Foo`:
+///
+/// ```
+/// trait Foo {
+///     fn bar(&self);
+///     fn baz(&self);
+/// }
+/// ```
+///
+/// We want to implement `Foo` on one of our types, but we also want to work on
+/// just `bar()` first. In order for our code to compile, we need to implement
+/// `baz()`, so we can use `todo!`:
+///
+/// ```
+/// #![feature(todo_macro)]
+///
+/// # trait Foo {
+/// #     fn bar(&self);
+/// #     fn baz(&self);
+/// # }
+/// struct MyStruct;
+///
+/// impl Foo for MyStruct {
+///     fn bar(&self) {
+///         // implementation goes here
+///     }
+///
+///     fn baz(&self) {
+///         // let's not worry about implementing baz() for now
+///         todo!();
+///     }
+/// }
+///
+/// fn main() {
+///     let s = MyStruct;
+///     s.bar();
+///
+///     // we aren't even using baz() yet, so this is fine.
+/// }
+/// ```
+#[macro_export]
+#[unstable(feature = "todo_macro", issue = "59277")]
+macro_rules! todo {
+    () => (panic!("not yet implemented"));
+    ($($arg:tt)+) => (panic!("not yet implemented: {}", format_args!($($arg)*)));
+}
+
+/// A macro to create an array of [`MaybeUninit`]
+///
+/// This macro constructs an uninitialized array of the type `[MaybeUninit<K>; N]`.
+///
+/// [`MaybeUninit`]: mem/union.MaybeUninit.html
+#[macro_export]
+#[unstable(feature = "maybe_uninit_array", issue = "53491")]
+macro_rules! uninitialized_array {
+    // This `into_initialized` is safe because an array of `MaybeUninit` does not
+    // require initialization.
+    // FIXME(#49147): Could be replaced by an array initializer, once those can
+    // be any const expression.
+    ($t:ty; $size:expr) => (unsafe {
+        MaybeUninit::<[MaybeUninit<$t>; $size]>::uninitialized().into_initialized()
+    });
 }
 
 /// Built-in macros to the compiler itself.
