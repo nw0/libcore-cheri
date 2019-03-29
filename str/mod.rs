@@ -14,6 +14,10 @@ use slice::{self, SliceIndex, Split as SliceSplit};
 
 pub mod pattern;
 
+#[unstable(feature = "str_internals", issue = "0")]
+#[allow(missing_docs)]
+pub mod lossy;
+
 /// A trait to abstract the idea of creating a new instance of a type from a
 /// string.
 ///
