@@ -9,6 +9,7 @@ use result;
 use slice;
 use str;
 
+mod float;
 mod num;
 mod builders;
 
