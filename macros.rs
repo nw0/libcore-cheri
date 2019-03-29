@@ -12,6 +12,10 @@ macro_rules! panic {
     ($msg:expr,) => (
         panic!($msg)
     );
+    ($fmt:expr, $($arg:tt)+) => ({
+        $crate::panicking::panic_fmt(format_args!($fmt, $($arg)*),
+                                     &(file!(), line!(), __rust_unstable_column!()))
+    });
 }
 
 /// Asserts that two expressions are equal to each other (using [`PartialEq`]).
