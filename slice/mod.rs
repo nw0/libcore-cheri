@@ -1965,13 +1965,12 @@ impl<T> [T] {
     /// [`split_at_mut`]: #method.split_at_mut
     #[stable(feature = "copy_from_slice", since = "1.9.0")]
     pub fn copy_from_slice(&mut self, src: &[T]) where T: Copy {
-        // assert_eq!(self.len(), src.len(),
-        //            "destination and source slices have different lengths");
-        // unsafe {
-        //     ptr::copy_nonoverlapping(
-        //         src.as_ptr(), self.as_mut_ptr(), self.len());
-        // }
-        self.clone_from_slice(src)
+        assert_eq!(self.len(), src.len(),
+                   "destination and source slices have different lengths");
+        unsafe {
+            ptr::copy_nonoverlapping(
+                src.as_ptr(), self.as_mut_ptr(), self.len());
+        }
     }
 
     /// Copies elements from one part of the slice to another part of itself,
@@ -2253,6 +2252,77 @@ impl<T> [T] {
              from_raw_parts_mut(mut_ptr as *mut U, us_len),
              from_raw_parts_mut(mut_ptr.add(rest.len() - ts_len), ts_len))
         }
+    }
+
+    /// Checks if the elements of this slice are sorted.
+    ///
+    /// That is, for each element `a` and its following element `b`, `a <= b` must hold. If the
+    /// slice yields exactly zero or one element, `true` is returned.
+    ///
+    /// Note that if `Self::Item` is only `PartialOrd`, but not `Ord`, the above definition
+    /// implies that this function returns `false` if any two consecutive items are not
+    /// comparable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(is_sorted)]
+    /// let empty: [i32; 0] = [];
+    ///
+    /// assert!([1, 2, 2, 9].is_sorted());
+    /// assert!(![1, 3, 2, 4].is_sorted());
+    /// assert!([0].is_sorted());
+    /// assert!(empty.is_sorted());
+    /// assert!(![0.0, 1.0, std::f32::NAN].is_sorted());
+    /// ```
+    #[inline]
+    #[unstable(feature = "is_sorted", reason = "new API", issue = "53485")]
+    pub fn is_sorted(&self) -> bool
+    where
+        T: PartialOrd,
+    {
+        self.is_sorted_by(|a, b| a.partial_cmp(b))
+    }
+
+    /// Checks if the elements of this slice are sorted using the given comparator function.
+    ///
+    /// Instead of using `PartialOrd::partial_cmp`, this function uses the given `compare`
+    /// function to determine the ordering of two elements. Apart from that, it's equivalent to
+    /// [`is_sorted`]; see its documentation for more information.
+    ///
+    /// [`is_sorted`]: #method.is_sorted
+    #[unstable(feature = "is_sorted", reason = "new API", issue = "53485")]
+    pub fn is_sorted_by<F>(&self, mut compare: F) -> bool
+    where
+        F: FnMut(&T, &T) -> Option<Ordering>
+    {
+        self.iter().is_sorted_by(|a, b| compare(*a, *b))
+    }
+
+    /// Checks if the elements of this slice are sorted using the given key extraction function.
+    ///
+    /// Instead of comparing the slice's elements directly, this function compares the keys of the
+    /// elements, as determined by `f`. Apart from that, it's equivalent to [`is_sorted`]; see its
+    /// documentation for more information.
+    ///
+    /// [`is_sorted`]: #method.is_sorted
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(is_sorted)]
+    ///
+    /// assert!(["c", "bb", "aaa"].is_sorted_by_key(|s| s.len()));
+    /// assert!(![-2i32, -1, 0, 3].is_sorted_by_key(|n| n.abs()));
+    /// ```
+    #[inline]
+    #[unstable(feature = "is_sorted", reason = "new API", issue = "53485")]
+    pub fn is_sorted_by_key<F, K>(&self, mut f: F) -> bool
+    where
+        F: FnMut(&T) -> K,
+        K: PartialOrd
+    {
+        self.is_sorted_by(|a, b| f(a).partial_cmp(&f(b)))
     }
 }
 
@@ -2779,7 +2849,13 @@ macro_rules! len {
 
 // The shared definition of the `Iter` and `IterMut` iterators
 macro_rules! iterator {
-    (struct $name:ident -> $ptr:ty, $elem:ty, $raw_mut:tt, $( $mut_:tt )*) => {
+    (
+        struct $name:ident -> $ptr:ty,
+        $elem:ty,
+        $raw_mut:tt,
+        {$( $mut_:tt )*},
+        {$($extra:tt)*}
+    ) => {
         impl<'a, T> $name<'a, T> {
             // Helper function for creating a slice from the iterator.
             #[inline(always)]
@@ -2819,7 +2895,7 @@ macro_rules! iterator {
         }
 
         #[stable(feature = "rust1", since = "1.0.0")]
-        impl<'a, T> ExactSizeIterator for $name<'a, T> {
+        impl<T> ExactSizeIterator for $name<'_, T> {
             #[inline(always)]
             fn len(&self) -> usize {
                 unsafe { len!(self) }
@@ -2956,6 +3032,8 @@ macro_rules! iterator {
                         i
                     })
             }
+
+            $($extra)*
         }
 
         #[stable(feature = "rust1", since = "1.0.0")]
@@ -3012,10 +3090,10 @@ macro_rules! iterator {
         }
 
         #[stable(feature = "fused", since = "1.26.0")]
-        impl<'a, T> FusedIterator for $name<'a, T> {}
+        impl<T> FusedIterator for $name<'_, T> {}
 
         #[unstable(feature = "trusted_len", issue = "37572")]
-        unsafe impl<'a, T> TrustedLen for $name<'a, T> {}
+        unsafe impl<T> TrustedLen for $name<'_, T> {}
     }
 }
 
@@ -3093,7 +3171,17 @@ impl<'a, T> Iter<'a, T> {
     }
 }
 
-iterator!{struct Iter -> *const T, &'a T, const, /* no mut */}
+iterator!{struct Iter -> *const T, &'a T, const, {/* no mut */}, {
+    fn is_sorted_by<F>(self, mut compare: F) -> bool
+    where
+        Self: Sized,
+        F: FnMut(&Self::Item, &Self::Item) -> Option<Ordering>,
+    {
+        self.as_slice().windows(2).all(|w| {
+            compare(&&w[0], &&w[1]).map(|o| o != Ordering::Greater).unwrap_or(false)
+        })
+    }
+}}
 
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T> Clone for Iter<'_, T> {
@@ -3192,9 +3280,37 @@ impl<'a, T> IterMut<'a, T> {
     pub fn into_slice(self) -> &'a mut [T] {
         unsafe { from_raw_parts_mut(self.ptr, len!(self)) }
     }
+
+    /// Views the underlying data as a subslice of the original data.
+    ///
+    /// To avoid creating `&mut [T]` references that alias, the returned slice
+    /// borrows its lifetime from the iterator the method is applied on.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// # #![feature(slice_iter_mut_as_slice)]
+    /// let mut slice: &mut [usize] = &mut [1, 2, 3];
+    ///
+    /// // First, we get the iterator:
+    /// let mut iter = slice.iter_mut();
+    /// // So if we check what the `as_slice` method returns here, we have "[1, 2, 3]":
+    /// assert_eq!(iter.as_slice(), &[1, 2, 3]);
+    ///
+    /// // Next, we move to the second element of the slice:
+    /// iter.next();
+    /// // Now `as_slice` returns "[2, 3]":
+    /// assert_eq!(iter.as_slice(), &[2, 3]);
+    /// ```
+    #[unstable(feature = "slice_iter_mut_as_slice", reason = "recently added", issue = "58957")]
+    pub fn as_slice(&self) -> &[T] {
+        self.make_slice()
+    }
 }
 
-iterator!{struct IterMut -> *mut T, &'a mut T, mut, mut}
+iterator!{struct IterMut -> *mut T, &'a mut T, mut, {mut}, {}}
 
 /// An internal abstraction over the splitting iterators, so that
 /// splitn, splitn_mut etc can be implemented once.
@@ -3754,6 +3870,14 @@ unsafe impl<T> TrustedLen for Windows<'_, T> {}
 #[stable(feature = "fused", since = "1.26.0")]
 impl<T> FusedIterator for Windows<'_, T> {}
 
+#[doc(hidden)]
+unsafe impl<'a, T> TrustedRandomAccess for Windows<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
+        from_raw_parts(self.v.as_ptr().add(i), self.size)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
+
 /// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
 /// time), starting at the beginning of the slice.
 ///
@@ -3868,6 +3992,19 @@ unsafe impl<T> TrustedLen for Chunks<'_, T> {}
 #[stable(feature = "fused", since = "1.26.0")]
 impl<T> FusedIterator for Chunks<'_, T> {}
 
+#[doc(hidden)]
+unsafe impl<'a, T> TrustedRandomAccess for Chunks<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
+        let start = i * self.chunk_size;
+        let end = match start.checked_add(self.chunk_size) {
+            None => self.v.len(),
+            Some(end) => cmp::min(end, self.v.len()),
+        };
+        from_raw_parts(self.v.as_ptr().add(start), end - start)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
+
 /// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
 /// elements at a time), starting at the beginning of the slice.
 ///
@@ -3976,6 +4113,18 @@ unsafe impl<T> TrustedLen for ChunksMut<'_, T> {}
 #[stable(feature = "fused", since = "1.26.0")]
 impl<T> FusedIterator for ChunksMut<'_, T> {}
 
+#[doc(hidden)]
+unsafe impl<'a, T> TrustedRandomAccess for ChunksMut<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut [T] {
+        let start = i * self.chunk_size;
+        let end = match start.checked_add(self.chunk_size) {
+            None => self.v.len(),
+            Some(end) => cmp::min(end, self.v.len()),
+        };
+        from_raw_parts_mut(self.v.as_mut_ptr().add(start), end - start)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
 
 /// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
 /// time), starting at the beginning of the slice.
@@ -4091,6 +4240,16 @@ unsafe impl<T> TrustedLen for ChunksExact<'_, T> {}
 #[stable(feature = "chunks_exact", since = "1.31.0")]
 impl<T> FusedIterator for ChunksExact<'_, T> {}
 
+#[doc(hidden)]
+#[stable(feature = "chunks_exact", since = "1.31.0")]
+unsafe impl<'a, T> TrustedRandomAccess for ChunksExact<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
+        let start = i * self.chunk_size;
+        from_raw_parts(self.v.as_ptr().add(start), self.chunk_size)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
+
 /// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
 /// elements at a time), starting at the beginning of the slice.
 ///
@@ -4197,6 +4356,16 @@ unsafe impl<T> TrustedLen for ChunksExactMut<'_, T> {}
 #[stable(feature = "chunks_exact", since = "1.31.0")]
 impl<T> FusedIterator for ChunksExactMut<'_, T> {}
 
+#[doc(hidden)]
+#[stable(feature = "chunks_exact", since = "1.31.0")]
+unsafe impl<'a, T> TrustedRandomAccess for ChunksExactMut<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut [T] {
+        let start = i * self.chunk_size;
+        from_raw_parts_mut(self.v.as_mut_ptr().add(start), self.chunk_size)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
+
 /// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
 /// time), starting at the end of the slice.
 ///
@@ -4216,8 +4385,8 @@ pub struct RChunks<'a, T:'a> {
 
 // FIXME(#26925) Remove in favor of `#[derive(Clone)]`
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> Clone for RChunks<'a, T> {
-    fn clone(&self) -> RChunks<'a, T> {
+impl<T> Clone for RChunks<'_, T> {
+    fn clone(&self) -> Self {
         RChunks {
             v: self.v,
             chunk_size: self.chunk_size,
@@ -4306,13 +4475,27 @@ impl<'a, T> DoubleEndedIterator for RChunks<'a, T> {
 }
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> ExactSizeIterator for RChunks<'a, T> {}
+impl<T> ExactSizeIterator for RChunks<'_, T> {}
 
 #[unstable(feature = "trusted_len", issue = "37572")]
-unsafe impl<'a, T> TrustedLen for RChunks<'a, T> {}
+unsafe impl<T> TrustedLen for RChunks<'_, T> {}
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> FusedIterator for RChunks<'a, T> {}
+impl<T> FusedIterator for RChunks<'_, T> {}
+
+#[doc(hidden)]
+#[stable(feature = "rchunks", since = "1.31.0")]
+unsafe impl<'a, T> TrustedRandomAccess for RChunks<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
+        let end = self.v.len() - i * self.chunk_size;
+        let start = match end.checked_sub(self.chunk_size) {
+            None => 0,
+            Some(start) => start,
+        };
+        from_raw_parts(self.v.as_ptr().add(start), end - start)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
 
 /// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
 /// elements at a time), starting at the end of the slice.
@@ -4417,13 +4600,27 @@ impl<'a, T> DoubleEndedIterator for RChunksMut<'a, T> {
 }
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> ExactSizeIterator for RChunksMut<'a, T> {}
+impl<T> ExactSizeIterator for RChunksMut<'_, T> {}
 
 #[unstable(feature = "trusted_len", issue = "37572")]
-unsafe impl<'a, T> TrustedLen for RChunksMut<'a, T> {}
+unsafe impl<T> TrustedLen for RChunksMut<'_, T> {}
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> FusedIterator for RChunksMut<'a, T> {}
+impl<T> FusedIterator for RChunksMut<'_, T> {}
+
+#[doc(hidden)]
+#[stable(feature = "rchunks", since = "1.31.0")]
+unsafe impl<'a, T> TrustedRandomAccess for RChunksMut<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut [T] {
+        let end = self.v.len() - i * self.chunk_size;
+        let start = match end.checked_sub(self.chunk_size) {
+            None => 0,
+            Some(start) => start,
+        };
+        from_raw_parts_mut(self.v.as_mut_ptr().add(start), end - start)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
 
 /// An iterator over a slice in (non-overlapping) chunks (`chunk_size` elements at a
 /// time), starting at the end of the slice.
@@ -4534,10 +4731,21 @@ impl<'a, T> ExactSizeIterator for RChunksExact<'a, T> {
 }
 
 #[unstable(feature = "trusted_len", issue = "37572")]
-unsafe impl<'a, T> TrustedLen for RChunksExact<'a, T> {}
+unsafe impl<T> TrustedLen for RChunksExact<'_, T> {}
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> FusedIterator for RChunksExact<'a, T> {}
+impl<T> FusedIterator for RChunksExact<'_, T> {}
+
+#[doc(hidden)]
+#[stable(feature = "rchunks", since = "1.31.0")]
+unsafe impl<'a, T> TrustedRandomAccess for RChunksExact<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a [T] {
+        let end = self.v.len() - i * self.chunk_size;
+        let start = end - self.chunk_size;
+        from_raw_parts(self.v.as_ptr().add(start), self.chunk_size)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
 
 /// An iterator over a slice in (non-overlapping) mutable chunks (`chunk_size`
 /// elements at a time), starting at the end of the slice.
@@ -4634,17 +4842,28 @@ impl<'a, T> DoubleEndedIterator for RChunksExactMut<'a, T> {
 }
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> ExactSizeIterator for RChunksExactMut<'a, T> {
+impl<T> ExactSizeIterator for RChunksExactMut<'_, T> {
     fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
 }
 
 #[unstable(feature = "trusted_len", issue = "37572")]
-unsafe impl<'a, T> TrustedLen for RChunksExactMut<'a, T> {}
+unsafe impl<T> TrustedLen for RChunksExactMut<'_, T> {}
 
 #[stable(feature = "rchunks", since = "1.31.0")]
-impl<'a, T> FusedIterator for RChunksExactMut<'a, T> {}
+impl<T> FusedIterator for RChunksExactMut<'_, T> {}
+
+#[doc(hidden)]
+#[stable(feature = "rchunks", since = "1.31.0")]
+unsafe impl<'a, T> TrustedRandomAccess for RChunksExactMut<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut [T] {
+        let end = self.v.len() - i * self.chunk_size;
+        let start = end - self.chunk_size;
+        from_raw_parts_mut(self.v.as_mut_ptr().add(start), self.chunk_size)
+    }
+    fn may_have_side_effect() -> bool { false }
+}
 
 //
 // Free functions
@@ -4936,6 +5155,22 @@ macro_rules! impl_marker_for {
 impl_marker_for!(BytewiseEquality,
                  u8 i8 u16 i16 u32 i32 u64 i64 usize isize char bool);
 
+#[doc(hidden)]
+unsafe impl<'a, T> TrustedRandomAccess for Iter<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a T {
+        self.nth(i).unwrap()
+    }
+    fn may_have_side_effect() -> bool { false }
+}
+
+#[doc(hidden)]
+unsafe impl<'a, T> TrustedRandomAccess for IterMut<'a, T> {
+    unsafe fn get_unchecked(&mut self, i: usize) -> &'a mut T {
+        self.nth(i).unwrap()
+    }
+    fn may_have_side_effect() -> bool { false }
+}
+
 trait SliceContains: Sized {
     fn slice_contains(&self, x: &[Self]) -> bool;
 }
@@ -4943,5 +5178,19 @@ trait SliceContains: Sized {
 impl<T> SliceContains for T where T: PartialEq {
     default fn slice_contains(&self, x: &[Self]) -> bool {
         x.iter().any(|y| *y == *self)
+    }
+}
+
+impl SliceContains for u8 {
+    fn slice_contains(&self, x: &[Self]) -> bool {
+        memchr::memchr(*self, x).is_some()
+    }
+}
+
+impl SliceContains for i8 {
+    fn slice_contains(&self, x: &[Self]) -> bool {
+        let byte = *self as u8;
+        let bytes: &[u8] = unsafe { from_raw_parts(x.as_ptr() as *const u8, x.len()) };
+        memchr::memchr(byte, bytes).is_some()
     }
 }
