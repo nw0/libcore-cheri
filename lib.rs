@@ -133,11 +133,15 @@ pub mod convert;
 pub mod borrow;
 
 /* Core types and methods on primitives */
+pub mod ascii;
+pub mod cell;
 pub mod char;
 pub mod panic;
 pub mod panicking;
+pub mod pin;
 pub mod iter;
 pub mod option;
+pub mod raw;
 pub mod result;
 pub mod ffi;
 

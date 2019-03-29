@@ -1,8 +1,10 @@
 #![stable(feature = "rust1", since = "1.0.0")]
 
+use cell::{UnsafeCell, Cell, RefCell, Ref, RefMut};
 use marker::PhantomData;
 use mem;
 use num::flt2dec;
+use ops::Deref;
 use result;
 use slice;
 use str;
@@ -1985,3 +1987,64 @@ impl<T: ?Sized> Debug for PhantomData<T> {
         f.pad("PhantomData")
     }
 }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: Copy + Debug> Debug for Cell<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.debug_struct("Cell")
+            .field("value", &self.get())
+            .finish()
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized + Debug> Debug for RefCell<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self.try_borrow() {
+            Ok(borrow) => {
+                f.debug_struct("RefCell")
+                    .field("value", &borrow)
+                    .finish()
+            }
+            Err(_) => {
+                // The RefCell is mutably borrowed so we can't look at its value
+                // here. Show a placeholder instead.
+                struct BorrowedPlaceholder;
+
+                impl Debug for BorrowedPlaceholder {
+                    fn fmt(&self, f: &mut Formatter) -> Result {
+                        f.write_str("<borrowed>")
+                    }
+                }
+
+                f.debug_struct("RefCell")
+                    .field("value", &BorrowedPlaceholder)
+                    .finish()
+            }
+        }
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized + Debug> Debug for Ref<'_, T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Debug::fmt(&**self, f)
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T: ?Sized + Debug> Debug for RefMut<'_, T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        Debug::fmt(&*(self.deref()), f)
+    }
+}
+
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: ?Sized + Debug> Debug for UnsafeCell<T> {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        f.pad("UnsafeCell")
+    }
+}
+
+// If you expected tests to be here, look instead at the run-pass/ifmt.rs test,
+// it's a lot easier than creating all of the rt::Piece structures here.
