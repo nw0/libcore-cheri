@@ -8,6 +8,7 @@
             issue = "27721")]
 
 use cmp;
+use fmt;
 use slice::memchr;
 use usize;
 
@@ -62,7 +63,7 @@ pub trait Pattern<'a>: Sized {
 // Searcher
 
 /// Result of calling `Searcher::next()` or `ReverseSearcher::next_back()`.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum SearchStep {
     /// Expresses that a match of the pattern has been found at
     /// `haystack[a..b]`.
@@ -238,7 +239,7 @@ pub trait DoubleEndedSearcher<'a>: ReverseSearcher<'a> {}
 /////////////////////////////////////////////////////////////////////////////
 
 /// Associated type for `<char as Pattern<'a>>::Searcher`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CharSearcher<'a> {
     haystack: &'a str,
     // safety invariant: `finger`/`finger_back` must be a valid utf8 byte index of `haystack`
@@ -488,7 +489,7 @@ impl MultiCharEq for &[char] {
 
 struct MultiCharEqPattern<C: MultiCharEq>(C);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct MultiCharEqSearcher<'a, C: MultiCharEq> {
     char_eq: C,
     haystack: &'a str,
@@ -627,7 +628,7 @@ macro_rules! searcher_methods {
 // Todo: Change / Remove due to ambiguity in meaning.
 
 /// Associated type for `<&[char] as Pattern<'a>>::Searcher`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CharSliceSearcher<'a, 'b>(<MultiCharEqPattern<&'b [char]> as Pattern<'a>>::Searcher);
 
 unsafe impl<'a, 'b> Searcher<'a> for CharSliceSearcher<'a, 'b> {
@@ -654,6 +655,16 @@ impl<'a, 'b> Pattern<'a> for &'b [char] {
 pub struct CharPredicateSearcher<'a, F>(<MultiCharEqPattern<F> as Pattern<'a>>::Searcher)
     where F: FnMut(char) -> bool;
 
+impl<F> fmt::Debug for CharPredicateSearcher<'_, F>
+    where F: FnMut(char) -> bool
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("CharPredicateSearcher")
+            .field("haystack", &self.0.haystack)
+            .field("char_indices", &self.0.char_indices)
+            .finish()
+    }
+}
 unsafe impl<'a, F> Searcher<'a> for CharPredicateSearcher<'a, F>
     where F: FnMut(char) -> bool
 {
@@ -720,7 +731,7 @@ impl<'a, 'b> Pattern<'a> for &'b str {
 // Two Way substring searcher
 /////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// Associated type for `<&str as Pattern<'a>>::Searcher`.
 pub struct StrSearcher<'a, 'b> {
     haystack: &'a str,
@@ -729,13 +740,13 @@ pub struct StrSearcher<'a, 'b> {
     searcher: StrSearcherImpl,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum StrSearcherImpl {
     Empty(EmptyNeedle),
     TwoWay(TwoWaySearcher),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EmptyNeedle {
     position: usize,
     end: usize,
@@ -919,7 +930,7 @@ unsafe impl<'a, 'b> ReverseSearcher<'a> for StrSearcher<'a, 'b> {
 }
 
 /// The internal state of the two-way substring search algorithm.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TwoWaySearcher {
     // constants
     /// critical factorization index

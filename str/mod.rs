@@ -8,9 +8,10 @@ use self::pattern::Pattern;
 use self::pattern::{Searcher};
 
 use char;
-use mem;
+use fmt::{self, Write};
 use iter::{Map, Cloned, FusedIterator, TrustedLen, Filter};
 use slice::{self, SliceIndex, Split as SliceSplit};
+use mem;
 
 pub mod pattern;
 
@@ -18,8 +19,7 @@ pub mod pattern;
 #[allow(missing_docs)]
 pub mod lossy;
 
-/// A trait to abstract the idea of creating a new instance of a type from a
-/// string.
+/// Parse a value from a string
 ///
 /// `FromStr`'s [`from_str`] method is often used implicitly, through
 /// [`str`]'s [`parse`] method. See [`parse`]'s documentation for examples.
@@ -27,6 +27,11 @@ pub mod lossy;
 /// [`from_str`]: #tymethod.from_str
 /// [`str`]: ../../std/primitive.str.html
 /// [`parse`]: ../../std/primitive.str.html#method.parse
+///
+/// `FromStr` does not have a lifetime parameter, and so you can only parse types
+/// that do not contain a lifetime parameter themselves. In other words, you can
+/// parse an `i32` with `FromStr`, but not a `&i32`. You can parse a struct that
+/// contains an `i32`, but not one that contains an `&i32`.
 ///
 /// # Examples
 ///
@@ -132,9 +137,16 @@ impl FromStr for bool {
 /// An error returned when parsing a `bool` using [`from_str`] fails
 ///
 /// [`from_str`]: ../../std/primitive.bool.html#method.from_str
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct ParseBoolError { _priv: () }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl fmt::Display for ParseBoolError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        "provided string was not `true` or `false`".fmt(f)
+    }
+}
 
 /*
 Section: Creating a string
@@ -181,7 +193,7 @@ Section: Creating a string
 ///     }
 /// }
 /// ```
-#[derive(Copy, Eq, PartialEq, Clone)]
+#[derive(Copy, Eq, PartialEq, Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct Utf8Error {
     valid_up_to: usize,
@@ -214,7 +226,7 @@ impl Utf8Error {
     #[stable(feature = "utf8_error", since = "1.5.0")]
     pub fn valid_up_to(&self) -> usize { self.valid_up_to }
 
-    /// Provide more information about the failure:
+    /// Provides more information about the failure:
     ///
     /// * `None`: the end of the input was reached unexpectedly.
     ///   `self.valid_up_to()` is 1 to 3 bytes from the end of the input.
@@ -297,6 +309,18 @@ pub unsafe fn from_utf8_unchecked_mut(v: &mut [u8]) -> &mut str {
     &mut *(v as *mut [u8] as *mut str)
 }
 
+#[stable(feature = "rust1", since = "1.0.0")]
+impl fmt::Display for Utf8Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(error_len) = self.error_len {
+            write!(f, "invalid utf-8 sequence of {} bytes from index {}",
+                   error_len, self.valid_up_to)
+        } else {
+            write!(f, "incomplete utf-8 byte sequence from index {}", self.valid_up_to)
+        }
+    }
+}
+
 /*
 Section: Iterators
 */
@@ -310,7 +334,7 @@ Section: Iterators
 ///
 /// [`chars`]: ../../std/primitive.str.html#method.chars
 /// [`str`]: ../../std/primitive.str.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct Chars<'a> {
     iter: slice::Iter<'a, u8>
@@ -463,7 +487,7 @@ impl<'a> DoubleEndedIterator for Chars<'a> {
 impl FusedIterator for Chars<'_> {}
 
 impl<'a> Chars<'a> {
-    /// View the underlying data as a subslice of the original data.
+    /// Views the underlying data as a subslice of the original data.
     ///
     /// This has the same lifetime as the original slice, and so the
     /// iterator can continue to be used while this exists.
@@ -496,7 +520,7 @@ impl<'a> Chars<'a> {
 ///
 /// [`char_indices`]: ../../std/primitive.str.html#method.char_indices
 /// [`str`]: ../../std/primitive.str.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct CharIndices<'a> {
     front_offset: usize,
@@ -553,7 +577,7 @@ impl<'a> DoubleEndedIterator for CharIndices<'a> {
 impl FusedIterator for CharIndices<'_> {}
 
 impl<'a> CharIndices<'a> {
-    /// View the underlying data as a subslice of the original data.
+    /// Views the underlying data as a subslice of the original data.
     ///
     /// This has the same lifetime as the original slice, and so the
     /// iterator can continue to be used while this exists.
@@ -572,7 +596,7 @@ impl<'a> CharIndices<'a> {
 /// [`bytes`]: ../../std/primitive.str.html#method.bytes
 /// [`str`]: ../../std/primitive.str.html
 #[stable(feature = "rust1", since = "1.0.0")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Bytes<'a>(Cloned<slice::Iter<'a, u8>>);
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -2293,6 +2317,13 @@ impl FusedIterator for SplitAsciiWhitespace<'_> {}
 pub struct EncodeUtf16<'a> {
     chars: Chars<'a>,
     extra: u16,
+}
+
+#[stable(feature = "collection_debug", since = "1.17.0")]
+impl fmt::Debug for EncodeUtf16<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("EncodeUtf16 { .. }")
+    }
 }
 
 #[stable(feature = "encode_utf16", since = "1.8.0")]
