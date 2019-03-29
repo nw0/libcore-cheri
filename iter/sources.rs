@@ -1,13 +1,4 @@
-// Copyright 2013-2016 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
+use fmt;
 use marker;
 use usize;
 
@@ -18,7 +9,7 @@ use super::{FusedIterator, TrustedLen};
 /// This `struct` is created by the [`repeat`] function. See its documentation for more.
 ///
 /// [`repeat`]: fn.repeat.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct Repeat<A> {
     element: A
@@ -48,8 +39,7 @@ unsafe impl<A: Clone> TrustedLen for Repeat<A> {}
 
 /// Creates a new iterator that endlessly repeats a single element.
 ///
-/// The `repeat()` function repeats a single value over and over and over and
-/// over and over and 🔁.
+/// The `repeat()` function repeats a single value over and over again.
 ///
 /// Infinite iterators like `repeat()` are often used with adapters like
 /// [`take`], in order to make them finite.
@@ -111,7 +101,7 @@ pub fn repeat<T: Clone>(elt: T) -> Repeat<T> {
 /// See its documentation for more.
 ///
 /// [`repeat_with`]: fn.repeat_with.html
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[stable(feature = "iterator_repeat_with", since = "1.28.0")]
 pub struct RepeatWith<F> {
     repeater: F
@@ -137,8 +127,7 @@ unsafe impl<A, F: FnMut() -> A> TrustedLen for RepeatWith<F> {}
 /// Creates a new iterator that repeats elements of type `A` endlessly by
 /// applying the provided closure, the repeater, `F: FnMut() -> A`.
 ///
-/// The `repeat_with()` function calls the repeater over and over and over and
-/// over and over and 🔁.
+/// The `repeat_with()` function calls the repeater over and over again.
 ///
 /// Infinite iterators like `repeat_with()` are often used with adapters like
 /// [`take`], in order to make them finite.
@@ -208,6 +197,13 @@ pub fn repeat_with<A, F: FnMut() -> A>(repeater: F) -> RepeatWith<F> {
 /// [`empty`]: fn.empty.html
 #[stable(feature = "iter_empty", since = "1.2.0")]
 pub struct Empty<T>(marker::PhantomData<T>);
+
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T> fmt::Debug for Empty<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Empty")
+    }
+}
 
 #[stable(feature = "iter_empty", since = "1.2.0")]
 impl<T> Iterator for Empty<T> {
@@ -284,7 +280,7 @@ pub const fn empty<T>() -> Empty<T> {
 /// This `struct` is created by the [`once`] function. See its documentation for more.
 ///
 /// [`once`]: fn.once.html
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "iter_once", since = "1.2.0")]
 pub struct Once<T> {
     inner: ::option::IntoIter<T>
@@ -379,24 +375,135 @@ pub fn once<T>(value: T) -> Once<T> {
     Once { inner: Some(value).into_iter() }
 }
 
+/// An iterator that repeats elements of type `A` endlessly by
+/// applying the provided closure `F: FnMut() -> A`.
+///
+/// This `struct` is created by the [`once_with`] function.
+/// See its documentation for more.
+///
+/// [`once_with`]: fn.once_with.html
+#[derive(Copy, Clone, Debug)]
+#[unstable(feature = "iter_once_with", issue = "57581")]
+pub struct OnceWith<F> {
+    gen: Option<F>,
+}
+
+#[unstable(feature = "iter_once_with", issue = "57581")]
+impl<A, F: FnOnce() -> A> Iterator for OnceWith<F> {
+    type Item = A;
+
+    #[inline]
+    fn next(&mut self) -> Option<A> {
+        self.gen.take().map(|f| f())
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.gen.iter().size_hint()
+    }
+}
+
+#[unstable(feature = "iter_once_with", issue = "57581")]
+impl<A, F: FnOnce() -> A> DoubleEndedIterator for OnceWith<F> {
+    fn next_back(&mut self) -> Option<A> {
+        self.next()
+    }
+}
+
+#[unstable(feature = "iter_once_with", issue = "57581")]
+impl<A, F: FnOnce() -> A> ExactSizeIterator for OnceWith<F> {
+    fn len(&self) -> usize {
+        self.gen.iter().len()
+    }
+}
+
+#[unstable(feature = "iter_once_with", issue = "57581")]
+impl<A, F: FnOnce() -> A> FusedIterator for OnceWith<F> {}
+
+#[unstable(feature = "iter_once_with", issue = "57581")]
+unsafe impl<A, F: FnOnce() -> A> TrustedLen for OnceWith<F> {}
+
+/// Creates an iterator that lazily generates a value exactly once by invoking
+/// the provided closure.
+///
+/// This is commonly used to adapt a single value generator into a [`chain`] of
+/// other kinds of iteration. Maybe you have an iterator that covers almost
+/// everything, but you need an extra special case. Maybe you have a function
+/// which works on iterators, but you only need to process one value.
+///
+/// Unlike [`once`], this function will lazily generate the value on request.
+///
+/// [`once`]: fn.once.html
+/// [`chain`]: trait.Iterator.html#method.chain
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// #![feature(iter_once_with)]
+///
+/// use std::iter;
+///
+/// // one is the loneliest number
+/// let mut one = iter::once_with(|| 1);
+///
+/// assert_eq!(Some(1), one.next());
+///
+/// // just one, that's all we get
+/// assert_eq!(None, one.next());
+/// ```
+///
+/// Chaining together with another iterator. Let's say that we want to iterate
+/// over each file of the `.foo` directory, but also a configuration file,
+/// `.foorc`:
+///
+/// ```no_run
+/// #![feature(iter_once_with)]
+///
+/// use std::iter;
+/// use std::fs;
+/// use std::path::PathBuf;
+///
+/// let dirs = fs::read_dir(".foo").unwrap();
+///
+/// // we need to convert from an iterator of DirEntry-s to an iterator of
+/// // PathBufs, so we use map
+/// let dirs = dirs.map(|file| file.unwrap().path());
+///
+/// // now, our iterator just for our config file
+/// let config = iter::once_with(|| PathBuf::from(".foorc"));
+///
+/// // chain the two iterators together into one big iterator
+/// let files = dirs.chain(config);
+///
+/// // this will give us all of the files in .foo as well as .foorc
+/// for f in files {
+///     println!("{:?}", f);
+/// }
+/// ```
+#[inline]
+#[unstable(feature = "iter_once_with", issue = "57581")]
+pub fn once_with<A, F: FnOnce() -> A>(gen: F) -> OnceWith<F> {
+    OnceWith { gen: Some(gen) }
+}
+
 /// Creates a new iterator where each iteration calls the provided closure
-/// `F: FnMut(&mut St) -> Option<T>`.
+/// `F: FnMut() -> Option<T>`.
 ///
 /// This allows creating a custom iterator with any behavior
 /// without using the more verbose syntax of creating a dedicated type
 /// and implementing the `Iterator` trait for it.
 ///
-/// In addition to its captures and environment,
-/// the closure is given a mutable reference to some state
-/// that is preserved across iterations.
-/// That state starts as the given `initial_state` value.
-///
-/// Note that the `Unfold` iterator doesn’t make assumptions about the behavior of the closure,
+/// Note that the `FromFn` iterator doesn’t make assumptions about the behavior of the closure,
 /// and therefore conservatively does not implement [`FusedIterator`],
 /// or override [`Iterator::size_hint`] from its default `(0, None)`.
 ///
 /// [`FusedIterator`]: trait.FusedIterator.html
 /// [`Iterator::size_hint`]: trait.Iterator.html#method.size_hint
+///
+/// The closure can use captures and its environment to track state across iterations. Depending on
+/// how the iterator is used, this may require specifying the `move` keyword on the closure.
 ///
 /// # Examples
 ///
@@ -405,14 +512,14 @@ pub fn once<T>(value: T) -> Once<T> {
 /// [module-level documentation]: index.html
 ///
 /// ```
-/// #![feature(iter_unfold)]
-/// let counter = std::iter::unfold(0, |count| {
+/// let mut count = 0;
+/// let counter = std::iter::from_fn(move || {
 ///     // Increment our count. This is why we started at zero.
-///     *count += 1;
+///     count += 1;
 ///
 ///     // Check to see if we've finished counting or not.
-///     if *count < 6 {
-///         Some(*count)
+///     if count < 6 {
+///         Some(count)
 ///     } else {
 ///         None
 ///     }
@@ -420,38 +527,39 @@ pub fn once<T>(value: T) -> Once<T> {
 /// assert_eq!(counter.collect::<Vec<_>>(), &[1, 2, 3, 4, 5]);
 /// ```
 #[inline]
-#[unstable(feature = "iter_unfold", issue = "55977")]
-pub fn unfold<St, T, F>(initial_state: St, f: F) -> Unfold<St, F>
-    where F: FnMut(&mut St) -> Option<T>
+#[stable(feature = "iter_from_fn", since = "1.34.0")]
+pub fn from_fn<T, F>(f: F) -> FromFn<F>
+    where F: FnMut() -> Option<T>
 {
-    Unfold {
-        state: initial_state,
-        f,
-    }
+    FromFn(f)
 }
 
-/// An iterator where each iteration calls the provided closure `F: FnMut(&mut St) -> Option<T>`.
+/// An iterator where each iteration calls the provided closure `F: FnMut() -> Option<T>`.
 ///
-/// This `struct` is created by the [`unfold`] function.
+/// This `struct` is created by the [`iter::from_fn`] function.
 /// See its documentation for more.
 ///
-/// [`unfold`]: fn.unfold.html
+/// [`iter::from_fn`]: fn.from_fn.html
 #[derive(Clone)]
-#[unstable(feature = "iter_unfold", issue = "55977")]
-pub struct Unfold<St, F> {
-    state: St,
-    f: F,
-}
+#[stable(feature = "iter_from_fn", since = "1.34.0")]
+pub struct FromFn<F>(F);
 
-#[unstable(feature = "iter_unfold", issue = "55977")]
-impl<St, T, F> Iterator for Unfold<St, F>
-    where F: FnMut(&mut St) -> Option<T>
+#[stable(feature = "iter_from_fn", since = "1.34.0")]
+impl<T, F> Iterator for FromFn<F>
+    where F: FnMut() -> Option<T>
 {
     type Item = T;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        (self.f)(&mut self.state)
+        (self.0)()
+    }
+}
+
+#[stable(feature = "iter_from_fn", since = "1.34.0")]
+impl<F> fmt::Debug for FromFn<F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("FromFn").finish()
     }
 }
 
@@ -461,13 +569,12 @@ impl<St, T, F> Iterator for Unfold<St, F>
 /// and calls the given `FnMut(&T) -> Option<T>` closure to compute each item’s successor.
 ///
 /// ```
-/// #![feature(iter_unfold)]
 /// use std::iter::successors;
 ///
 /// let powers_of_10 = successors(Some(1_u16), |n| n.checked_mul(10));
 /// assert_eq!(powers_of_10.collect::<Vec<_>>(), &[1, 10, 100, 1_000, 10_000]);
 /// ```
-#[unstable(feature = "iter_unfold", issue = "55977")]
+#[stable(feature = "iter_successors", since = "1.34.0")]
 pub fn successors<T, F>(first: Option<T>, succ: F) -> Successors<T, F>
     where F: FnMut(&T) -> Option<T>
 {
@@ -487,13 +594,13 @@ pub fn successors<T, F>(first: Option<T>, succ: F) -> Successors<T, F>
 ///
 /// [`successors`]: fn.successors.html
 #[derive(Clone)]
-#[unstable(feature = "iter_unfold", issue = "55977")]
+#[stable(feature = "iter_successors", since = "1.34.0")]
 pub struct Successors<T, F> {
     next: Option<T>,
     succ: F,
 }
 
-#[unstable(feature = "iter_unfold", issue = "55977")]
+#[stable(feature = "iter_successors", since = "1.34.0")]
 impl<T, F> Iterator for Successors<T, F>
     where F: FnMut(&T) -> Option<T>
 {
@@ -517,7 +624,16 @@ impl<T, F> Iterator for Successors<T, F>
     }
 }
 
-#[unstable(feature = "iter_unfold", issue = "55977")]
+#[stable(feature = "iter_successors", since = "1.34.0")]
 impl<T, F> FusedIterator for Successors<T, F>
     where F: FnMut(&T) -> Option<T>
 {}
+
+#[stable(feature = "iter_successors", since = "1.34.0")]
+impl<T: fmt::Debug, F> fmt::Debug for Successors<T, F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Successors")
+            .field("next", &self.next)
+            .finish()
+    }
+}

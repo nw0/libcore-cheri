@@ -1,22 +1,11 @@
-// Copyright 2013-2016 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 use cmp::Ordering;
 use ops::Try;
 
-use super::LoopState;
-use super::{Chain, Cycle, Cloned, Enumerate, Filter, FilterMap, Fuse};
-use super::{Flatten, FlatMap, flatten_compat};
-use super::{Inspect, Map, Peekable, Scan, Skip, SkipWhile, StepBy, Take, TakeWhile, Rev};
-use super::{Zip, Sum, Product};
-use super::{ChainState, FromIterator, ZipImpl};
+use super::super::LoopState;
+use super::super::{Chain, Cycle, Copied, Cloned, Enumerate, Filter, FilterMap, Fuse};
+use super::super::{Flatten, FlatMap};
+use super::super::{Inspect, Map, Peekable, Scan, Skip, SkipWhile, StepBy, Take, TakeWhile, Rev};
+use super::super::{Zip, Sum, Product, FromIterator};
 
 fn _assert_is_object_safe(_: &dyn Iterator<Item=()>) {}
 
@@ -98,7 +87,7 @@ fn _assert_is_object_safe(_: &dyn Iterator<Item=()>) {}
     message="`{Self}` is not an iterator"
 )]
 #[doc(spotlight)]
-#[must_use]
+#[must_use = "iterators are lazy and do nothing unless consumed"]
 pub trait Iterator {
     /// The type of the elements being iterated over.
     #[stable(feature = "rust1", since = "1.0.0")]
@@ -131,7 +120,7 @@ pub trait Iterator {
     /// // ... and then None once it's over.
     /// assert_eq!(None, iter.next());
     ///
-    /// // More calls may or may not return None. Here, they always will.
+    /// // More calls may or may not return `None`. Here, they always will.
     /// assert_eq!(None, iter.next());
     /// assert_eq!(None, iter.next());
     /// ```
@@ -162,7 +151,7 @@ pub trait Iterator {
     /// That said, the implementation should provide a correct estimation,
     /// because otherwise it would be a violation of the trait's protocol.
     ///
-    /// The default implementation returns `(0, None)` which is correct for any
+    /// The default implementation returns `(0, `[`None`]`)` which is correct for any
     /// iterator.
     ///
     /// [`usize`]: ../../std/primitive.usize.html
@@ -377,8 +366,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "iterator_step_by", since = "1.28.0")]
     fn step_by(self, step: usize) -> StepBy<Self> where Self: Sized {
-        assert!(step != 0);
-        StepBy{iter: self, step: step - 1, first_take: true}
+        StepBy::new(self, step)
     }
 
     /// Takes two iterators and creates a new iterator over both in sequence.
@@ -435,7 +423,7 @@ pub trait Iterator {
     fn chain<U>(self, other: U) -> Chain<Self, U::IntoIter> where
         Self: Sized, U: IntoIterator<Item=Self::Item>,
     {
-        Chain{a: self, b: other.into_iter(), state: ChainState::Both}
+        Chain::new(self, other.into_iter())
     }
 
     /// 'Zips up' two iterators into a single iterator of pairs.
@@ -570,15 +558,15 @@ pub trait Iterator {
     fn map<B, F>(self, f: F) -> Map<Self, F> where
         Self: Sized, F: FnMut(Self::Item) -> B,
     {
-        Map { iter: self, f }
+        Map::new(self, f)
     }
 
     /// Calls a closure on each element of an iterator.
     ///
     /// This is equivalent to using a [`for`] loop on the iterator, although
-    /// `break` and `continue` are not possible from a closure.  It's generally
+    /// `break` and `continue` are not possible from a closure. It's generally
     /// more idiomatic to use a `for` loop, but `for_each` may be more legible
-    /// when processing items at the end of longer iterator chains.  In some
+    /// when processing items at the end of longer iterator chains. In some
     /// cases `for_each` may also be faster than a loop, because it will use
     /// internal iteration on adaptors like `Chain`.
     ///
@@ -681,7 +669,7 @@ pub trait Iterator {
     fn filter<P>(self, predicate: P) -> Filter<Self, P> where
         Self: Sized, P: FnMut(&Self::Item) -> bool,
     {
-        Filter {iter: self, predicate }
+        Filter::new(self, predicate)
     }
 
     /// Creates an iterator that both filters and maps.
@@ -738,7 +726,7 @@ pub trait Iterator {
     fn filter_map<B, F>(self, f: F) -> FilterMap<Self, F> where
         Self: Sized, F: FnMut(Self::Item) -> Option<B>,
     {
-        FilterMap { iter: self, f }
+        FilterMap::new(self, f)
     }
 
     /// Creates an iterator which gives the current iteration count as well as
@@ -782,7 +770,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn enumerate(self) -> Enumerate<Self> where Self: Sized {
-        Enumerate { iter: self, count: 0 }
+        Enumerate::new(self)
     }
 
     /// Creates an iterator which can use `peek` to look at the next element of
@@ -828,7 +816,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn peekable(self) -> Peekable<Self> where Self: Sized {
-        Peekable{iter: self, peeked: None}
+        Peekable::new(self)
     }
 
     /// Creates an iterator that [`skip`]s elements based on a predicate.
@@ -891,7 +879,7 @@ pub trait Iterator {
     fn skip_while<P>(self, predicate: P) -> SkipWhile<Self, P> where
         Self: Sized, P: FnMut(&Self::Item) -> bool,
     {
-        SkipWhile { iter: self, flag: false, predicate }
+        SkipWhile::new(self, predicate)
     }
 
     /// Creates an iterator that yields elements based on a predicate.
@@ -964,14 +952,13 @@ pub trait Iterator {
     /// ```
     ///
     /// The `3` is no longer there, because it was consumed in order to see if
-    /// the iteration should stop, but wasn't placed back into the iterator or
-    /// some similar thing.
+    /// the iteration should stop, but wasn't placed back into the iterator.
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn take_while<P>(self, predicate: P) -> TakeWhile<Self, P> where
         Self: Sized, P: FnMut(&Self::Item) -> bool,
     {
-        TakeWhile { iter: self, flag: false, predicate }
+        TakeWhile::new(self, predicate)
     }
 
     /// Creates an iterator that skips the first `n` elements.
@@ -993,7 +980,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn skip(self, n: usize) -> Skip<Self> where Self: Sized {
-        Skip { iter: self, n }
+        Skip::new(self, n)
     }
 
     /// Creates an iterator that yields its first `n` elements.
@@ -1025,7 +1012,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn take(self, n: usize) -> Take<Self> where Self: Sized, {
-        Take { iter: self, n }
+        Take::new(self, n)
     }
 
     /// An iterator adaptor similar to [`fold`] that holds internal state and
@@ -1070,7 +1057,7 @@ pub trait Iterator {
     fn scan<St, B, F>(self, initial_state: St, f: F) -> Scan<Self, St, F>
         where Self: Sized, F: FnMut(&mut St, Self::Item) -> Option<B>,
     {
-        Scan { iter: self, f, state: initial_state }
+        Scan::new(self, initial_state, f)
     }
 
     /// Creates an iterator that works like map, but flattens nested structure.
@@ -1108,7 +1095,7 @@ pub trait Iterator {
     fn flat_map<U, F>(self, f: F) -> FlatMap<Self, U, F>
         where Self: Sized, U: IntoIterator, F: FnMut(Self::Item) -> U,
     {
-        FlatMap { inner: flatten_compat(self.map(f)) }
+        FlatMap::new(self, f)
     }
 
     /// Creates an iterator that flattens nested structure.
@@ -1176,7 +1163,7 @@ pub trait Iterator {
     #[stable(feature = "iterator_flatten", since = "1.29.0")]
     fn flatten(self) -> Flatten<Self>
     where Self: Sized, Self::Item: IntoIterator {
-        Flatten { inner: flatten_compat(self) }
+        Flatten::new(self)
     }
 
     /// Creates an iterator which ends after the first [`None`].
@@ -1228,7 +1215,7 @@ pub trait Iterator {
     /// assert_eq!(iter.next(), Some(4));
     /// assert_eq!(iter.next(), None);
     ///
-    /// // it will always return None after the first time.
+    /// // it will always return `None` after the first time.
     /// assert_eq!(iter.next(), None);
     /// assert_eq!(iter.next(), None);
     /// assert_eq!(iter.next(), None);
@@ -1236,7 +1223,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn fuse(self) -> Fuse<Self> where Self: Sized {
-        Fuse{iter: self, done: false}
+        Fuse::new(self)
     }
 
     /// Do something with each element of an iterator, passing the value on.
@@ -1319,7 +1306,7 @@ pub trait Iterator {
     fn inspect<F>(self, f: F) -> Inspect<Self, F> where
         Self: Sized, F: FnMut(&Self::Item),
     {
-        Inspect { iter: self, f }
+        Inspect::new(self, f)
     }
 
     /// Borrows an iterator, rather than consuming it.
@@ -1528,7 +1515,7 @@ pub trait Iterator {
     /// is propagated back to the caller immediately (short-circuiting).
     ///
     /// The initial value is the value the accumulator will have on the first
-    /// call.  If applying the closure succeeded against every element of the
+    /// call. If applying the closure succeeded against every element of the
     /// iterator, `try_fold()` returns the final accumulator as success.
     ///
     /// Folding is useful whenever you have a collection of something, and want
@@ -1541,10 +1528,10 @@ pub trait Iterator {
     /// do something better than the default `for` loop implementation.
     ///
     /// In particular, try to have this call `try_fold()` on the internal parts
-    /// from which this iterator is composed.  If multiple calls are needed,
+    /// from which this iterator is composed. If multiple calls are needed,
     /// the `?` operator may be convenient for chaining the accumulator value
     /// along, but beware any invariants that need to be upheld before those
-    /// early returns.  This is a `&mut self` method, so iteration needs to be
+    /// early returns. This is a `&mut self` method, so iteration needs to be
     /// resumable after hitting an error here.
     ///
     /// # Examples
@@ -2021,12 +2008,7 @@ pub trait Iterator {
     #[stable(feature = "rust1", since = "1.0.0")]
     fn max(self) -> Option<Self::Item> where Self: Sized, Self::Item: Ord
     {
-        select_fold1(self,
-                     |_| (),
-                     // switch to y even if it is only equal, to preserve
-                     // stability.
-                     |_, x, _, y| *x <= *y)
-            .map(|(_, x)| x)
+        self.max_by(Ord::cmp)
     }
 
     /// Returns the minimum element of an iterator.
@@ -2051,12 +2033,7 @@ pub trait Iterator {
     #[stable(feature = "rust1", since = "1.0.0")]
     fn min(self) -> Option<Self::Item> where Self: Sized, Self::Item: Ord
     {
-        select_fold1(self,
-                     |_| (),
-                     // only switch to y if it is strictly smaller, to
-                     // preserve stability.
-                     |_, x, _, y| *x > *y)
-            .map(|(_, x)| x)
+        self.min_by(Ord::cmp)
     }
 
     /// Returns the element that gives the maximum value from the
@@ -2075,15 +2052,11 @@ pub trait Iterator {
     /// ```
     #[inline]
     #[stable(feature = "iter_cmp_by_key", since = "1.6.0")]
-    fn max_by_key<B: Ord, F>(self, f: F) -> Option<Self::Item>
+    fn max_by_key<B: Ord, F>(self, mut f: F) -> Option<Self::Item>
         where Self: Sized, F: FnMut(&Self::Item) -> B,
     {
-        select_fold1(self,
-                     f,
-                     // switch to y even if it is only equal, to preserve
-                     // stability.
-                     |x_p, _, y_p, _| x_p <= y_p)
-            .map(|(_, x)| x)
+        // switch to y even if it is only equal, to preserve stability.
+        select_fold1(self.map(|x| (f(&x), x)), |(x_p, _), (y_p, _)| x_p <= y_p).map(|(_, x)| x)
     }
 
     /// Returns the element that gives the maximum value with respect to the
@@ -2105,12 +2078,8 @@ pub trait Iterator {
     fn max_by<F>(self, mut compare: F) -> Option<Self::Item>
         where Self: Sized, F: FnMut(&Self::Item, &Self::Item) -> Ordering,
     {
-        select_fold1(self,
-                     |_| (),
-                     // switch to y even if it is only equal, to preserve
-                     // stability.
-                     |_, x, _, y| Ordering::Greater != compare(x, y))
-            .map(|(_, x)| x)
+        // switch to y even if it is only equal, to preserve stability.
+        select_fold1(self, |x, y| compare(x, y) != Ordering::Greater)
     }
 
     /// Returns the element that gives the minimum value from the
@@ -2128,15 +2097,11 @@ pub trait Iterator {
     /// assert_eq!(*a.iter().min_by_key(|x| x.abs()).unwrap(), 0);
     /// ```
     #[stable(feature = "iter_cmp_by_key", since = "1.6.0")]
-    fn min_by_key<B: Ord, F>(self, f: F) -> Option<Self::Item>
+    fn min_by_key<B: Ord, F>(self, mut f: F) -> Option<Self::Item>
         where Self: Sized, F: FnMut(&Self::Item) -> B,
     {
-        select_fold1(self,
-                     f,
-                     // only switch to y if it is strictly smaller, to
-                     // preserve stability.
-                     |x_p, _, y_p, _| x_p > y_p)
-            .map(|(_, x)| x)
+        // only switch to y if it is strictly smaller, to preserve stability.
+        select_fold1(self.map(|x| (f(&x), x)), |(x_p, _), (y_p, _)| x_p > y_p).map(|(_, x)| x)
     }
 
     /// Returns the element that gives the minimum value with respect to the
@@ -2158,12 +2123,8 @@ pub trait Iterator {
     fn min_by<F>(self, mut compare: F) -> Option<Self::Item>
         where Self: Sized, F: FnMut(&Self::Item, &Self::Item) -> Ordering,
     {
-        select_fold1(self,
-                     |_| (),
-                     // switch to y even if it is strictly smaller, to
-                     // preserve stability.
-                     |_, x, _, y| Ordering::Greater == compare(x, y))
-            .map(|(_, x)| x)
+        // only switch to y if it is strictly smaller, to preserve stability.
+        select_fold1(self, |x, y| compare(x, y) == Ordering::Greater)
     }
 
 
@@ -2193,7 +2154,7 @@ pub trait Iterator {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     fn rev(self) -> Rev<Self> where Self: Sized + DoubleEndedIterator {
-        Rev{iter: self}
+        Rev::new(self)
     }
 
     /// Converts an iterator of pairs into a pair of containers.
@@ -2235,6 +2196,35 @@ pub trait Iterator {
         (ts, us)
     }
 
+    /// Creates an iterator which copies all of its elements.
+    ///
+    /// This is useful when you have an iterator over `&T`, but you need an
+    /// iterator over `T`.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// #![feature(iter_copied)]
+    ///
+    /// let a = [1, 2, 3];
+    ///
+    /// let v_cloned: Vec<_> = a.iter().copied().collect();
+    ///
+    /// // copied is the same as .map(|&x| x)
+    /// let v_map: Vec<_> = a.iter().map(|&x| x).collect();
+    ///
+    /// assert_eq!(v_cloned, vec![1, 2, 3]);
+    /// assert_eq!(v_map, vec![1, 2, 3]);
+    /// ```
+    #[unstable(feature = "iter_copied", issue = "57127")]
+    fn copied<'a, T: 'a>(self) -> Copied<Self>
+        where Self: Sized + Iterator<Item=&'a T>, T: Copy
+    {
+        Copied::new(self)
+    }
+
     /// Creates an iterator which [`clone`]s all of its elements.
     ///
     /// This is useful when you have an iterator over `&T`, but you need an
@@ -2261,7 +2251,7 @@ pub trait Iterator {
     fn cloned<'a, T: 'a>(self) -> Cloned<Self>
         where Self: Sized + Iterator<Item=&'a T>, T: Clone
     {
-        Cloned { it: self }
+        Cloned::new(self)
     }
 
     /// Repeats an iterator endlessly.
@@ -2292,7 +2282,7 @@ pub trait Iterator {
     #[stable(feature = "rust1", since = "1.0.0")]
     #[inline]
     fn cycle(self) -> Cycle<Self> where Self: Sized + Clone {
-        Cycle{orig: self.clone(), iter: self}
+        Cycle::new(self)
     }
 
     /// Sums the elements of an iterator.
@@ -2339,7 +2329,7 @@ pub trait Iterator {
     ///
     /// ```
     /// fn factorial(n: u32) -> u32 {
-    ///     (1..).take_while(|&i| i <= n).product()
+    ///     (1..=n).product()
     /// }
     /// assert_eq!(factorial(0), 1);
     /// assert_eq!(factorial(1), 1);
@@ -2586,36 +2576,114 @@ pub trait Iterator {
             }
         }
     }
+
+    /// Checks if the elements of this iterator are sorted.
+    ///
+    /// That is, for each element `a` and its following element `b`, `a <= b` must hold. If the
+    /// iterator yields exactly zero or one element, `true` is returned.
+    ///
+    /// Note that if `Self::Item` is only `PartialOrd`, but not `Ord`, the above definition
+    /// implies that this function returns `false` if any two consecutive items are not
+    /// comparable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(is_sorted)]
+    ///
+    /// assert!([1, 2, 2, 9].iter().is_sorted());
+    /// assert!(![1, 3, 2, 4].iter().is_sorted());
+    /// assert!([0].iter().is_sorted());
+    /// assert!(std::iter::empty::<i32>().is_sorted());
+    /// assert!(![0.0, 1.0, std::f32::NAN].iter().is_sorted());
+    /// ```
+    #[inline]
+    #[unstable(feature = "is_sorted", reason = "new API", issue = "53485")]
+    fn is_sorted(self) -> bool
+    where
+        Self: Sized,
+        Self::Item: PartialOrd,
+    {
+        self.is_sorted_by(|a, b| a.partial_cmp(b))
+    }
+
+    /// Checks if the elements of this iterator are sorted using the given comparator function.
+    ///
+    /// Instead of using `PartialOrd::partial_cmp`, this function uses the given `compare`
+    /// function to determine the ordering of two elements. Apart from that, it's equivalent to
+    /// [`is_sorted`]; see its documentation for more information.
+    ///
+    /// [`is_sorted`]: trait.Iterator.html#method.is_sorted
+    #[unstable(feature = "is_sorted", reason = "new API", issue = "53485")]
+    fn is_sorted_by<F>(mut self, mut compare: F) -> bool
+    where
+        Self: Sized,
+        F: FnMut(&Self::Item, &Self::Item) -> Option<Ordering>
+    {
+        let mut last = match self.next() {
+            Some(e) => e,
+            None => return true,
+        };
+
+        while let Some(curr) = self.next() {
+            if compare(&last, &curr)
+                .map(|o| o == Ordering::Greater)
+                .unwrap_or(true)
+            {
+                return false;
+            }
+            last = curr;
+        }
+
+        true
+    }
+
+    /// Checks if the elements of this iterator are sorted using the given key extraction
+    /// function.
+    ///
+    /// Instead of comparing the iterator's elements directly, this function compares the keys of
+    /// the elements, as determined by `f`. Apart from that, it's equivalent to [`is_sorted`]; see
+    /// its documentation for more information.
+    ///
+    /// [`is_sorted`]: trait.Iterator.html#method.is_sorted
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(is_sorted)]
+    ///
+    /// assert!(["c", "bb", "aaa"].iter().is_sorted_by_key(|s| s.len()));
+    /// assert!(![-2i32, -1, 0, 3].iter().is_sorted_by_key(|n| n.abs()));
+    /// ```
+    #[inline]
+    #[unstable(feature = "is_sorted", reason = "new API", issue = "53485")]
+    fn is_sorted_by_key<F, K>(self, mut f: F) -> bool
+    where
+        Self: Sized,
+        F: FnMut(&Self::Item) -> K,
+        K: PartialOrd
+    {
+        self.is_sorted_by(|a, b| f(a).partial_cmp(&f(b)))
+    }
 }
 
-/// Select an element from an iterator based on the given "projection"
-/// and "comparison" function.
+/// Select an element from an iterator based on the given "comparison"
+/// function.
 ///
 /// This is an idiosyncratic helper to try to factor out the
 /// commonalities of {max,min}{,_by}. In particular, this avoids
 /// having to implement optimizations several times.
 #[inline]
-fn select_fold1<I, B, FProj, FCmp>(mut it: I,
-                                   mut f_proj: FProj,
-                                   mut f_cmp: FCmp) -> Option<(B, I::Item)>
-    where I: Iterator,
-          FProj: FnMut(&I::Item) -> B,
-          FCmp: FnMut(&B, &I::Item, &B, &I::Item) -> bool
+fn select_fold1<I, F>(mut it: I, mut f: F) -> Option<I::Item>
+    where
+        I: Iterator,
+        F: FnMut(&I::Item, &I::Item) -> bool,
 {
     // start with the first element as our selection. This avoids
     // having to use `Option`s inside the loop, translating to a
     // sizeable performance gain (6x in one case).
     it.next().map(|first| {
-        let first_p = f_proj(&first);
-
-        it.fold((first_p, first), |(sel_p, sel), x| {
-            let x_p = f_proj(&x);
-            if f_cmp(&sel_p, &sel, &x_p, &x) {
-                (x_p, x)
-            } else {
-                (sel_p, sel)
-            }
-        })
+        it.fold(first, |sel, x| if f(&sel, &x) { x } else { sel })
     })
 }
 
