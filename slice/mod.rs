@@ -1,13 +1,3 @@
-// Copyright 2012-2017 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Slice management and manipulation.
 //!
 //! For more details see [`std::slice`].
@@ -32,8 +22,8 @@
 
 use cmp::Ordering::{self, Less, Equal, Greater};
 use cmp;
-use intrinsics::assume;
-use intrinsics;
+use fmt;
+use intrinsics::{assume, ptr_diff};
 use isize;
 use iter::*;
 use ops::{FnMut, Try, self};
@@ -1207,7 +1197,7 @@ impl<T> [T] {
 
     /// Returns an iterator over subslices separated by elements that match
     /// `pred` limited to returning at most `n` items. This starts at the end of
-    /// the slice and works backwards.  The matched element is not contained in
+    /// the slice and works backwards. The matched element is not contained in
     /// the subslices.
     ///
     /// The last element returned, if any, will contain the remainder of the
@@ -1573,6 +1563,10 @@ impl<T> [T] {
     /// randomization to avoid degenerate cases, but with a fixed seed to always provide
     /// deterministic behavior.
     ///
+    /// Due to its key calling strategy, [`sort_unstable_by_key`](#method.sort_unstable_by_key)
+    /// is likely to be slower than [`sort_by_cached_key`](#method.sort_by_cached_key) in
+    /// cases where the key function is expensive.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1792,7 +1786,7 @@ impl<T> [T] {
     /// let mut a = ['a', 'b', 'c', 'd', 'e', 'f'];
     /// a[1..5].rotate_left(1);
     /// assert_eq!(a, ['a', 'c', 'd', 'e', 'b', 'f']);
-   /// ```
+    /// ```
     #[stable(feature = "slice_rotate", since = "1.26.0")]
     pub fn rotate_left(&mut self, mid: usize) {
         assert!(mid <= self.len());
@@ -2165,7 +2159,7 @@ impl<T> [T] {
     /// This method has no purpose when either input element `T` or output element `U` are
     /// zero-sized and will return the original slice without splitting anything.
     ///
-    /// # Unsafety
+    /// # Safety
     ///
     /// This method is essentially a `transmute` with respect to the elements in the returned
     /// middle slice, so all the usual caveats pertaining to `transmute::<T, U>` also apply here.
@@ -2218,7 +2212,7 @@ impl<T> [T] {
     /// This method has no purpose when either input element `T` or output element `U` are
     /// zero-sized and will return the original slice without splitting anything.
     ///
-    /// # Unsafety
+    /// # Safety
     ///
     /// This method is essentially a `transmute` with respect to the elements in the returned
     /// middle slice, so all the usual caveats pertaining to `transmute::<T, U>` also apply here.
@@ -2322,7 +2316,6 @@ impl [u8] {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-#[rustc_on_unimplemented = "slice indices are of type `usize` or ranges of `usize`"]
 impl<T, I> ops::Index<I> for [T]
     where I: SliceIndex<[T]>
 {
@@ -2335,7 +2328,6 @@ impl<T, I> ops::Index<I> for [T]
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-#[rustc_on_unimplemented = "slice indices are of type `usize` or ranges of `usize`"]
 impl<T, I> ops::IndexMut<I> for [T]
     where I: SliceIndex<[T]>
 {
@@ -2348,13 +2340,13 @@ impl<T, I> ops::IndexMut<I> for [T]
 #[inline(never)]
 #[cold]
 fn slice_index_len_fail(index: usize, len: usize) -> ! {
-    panic!("");
+    panic!("index out of range for slice");
 }
 
 #[inline(never)]
 #[cold]
 fn slice_index_order_fail(index: usize, end: usize) -> ! {
-    panic!("");
+    panic!("slice index order fail");
 }
 
 #[inline(never)]
@@ -2386,7 +2378,19 @@ mod private_slice_index {
 
 /// A helper trait used for indexing operations.
 #[stable(feature = "slice_get_slice", since = "1.28.0")]
-#[rustc_on_unimplemented = "slice indices are of type `usize` or ranges of `usize`"]
+#[rustc_on_unimplemented(
+    on(
+        T = "str",
+        label = "string indices are ranges of `usize`",
+    ),
+    on(
+        all(any(T = "str", T = "&str", T = "std::string::String"), _Self="{integer}"),
+        note="you can use `.chars().nth()` or `.bytes().nth()`
+see chapter in The Book <https://doc.rust-lang.org/book/ch08-02-strings.html#indexing-into-strings>"
+    ),
+    message = "the type `{T}` cannot be indexed by `{Self}`",
+    label = "slice indices are of type `usize` or ranges of `usize`",
+)]
 pub trait SliceIndex<T: ?Sized>: private_slice_index::Sealed {
     /// The output type returned by methods.
     #[stable(feature = "slice_get_slice", since = "1.28.0")]
@@ -2769,7 +2773,7 @@ macro_rules! is_empty {
 // unexpected way. (Tested by `codegen/slice-position-bounds-check`.)
 macro_rules! len {
     ($self: ident) => {{
-        intrinsics::ptr_diff($self.end, $self.ptr)
+        ptr_diff($self.end, $self.ptr)
     }}
 }
 
@@ -3044,13 +3048,22 @@ pub struct Iter<'a, T: 'a> {
     _marker: marker::PhantomData<&'a T>,
 }
 
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Iter")
+            .field(&self.as_slice())
+            .finish()
+    }
+}
+
 #[stable(feature = "rust1", since = "1.0.0")]
 unsafe impl<T: Sync> Sync for Iter<'_, T> {}
 #[stable(feature = "rust1", since = "1.0.0")]
 unsafe impl<T: Sync> Send for Iter<'_, T> {}
 
 impl<'a, T> Iter<'a, T> {
-    /// View the underlying data as a subslice of the original data.
+    /// Views the underlying data as a subslice of the original data.
     ///
     /// This has the same lifetime as the original slice, and so the
     /// iterator can continue to be used while this exists.
@@ -3127,13 +3140,22 @@ pub struct IterMut<'a, T: 'a> {
     _marker: marker::PhantomData<&'a mut T>,
 }
 
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("IterMut")
+            .field(&self.make_slice())
+            .finish()
+    }
+}
+
 #[stable(feature = "rust1", since = "1.0.0")]
 unsafe impl<T: Sync> Sync for IterMut<'_, T> {}
 #[stable(feature = "rust1", since = "1.0.0")]
 unsafe impl<T: Send> Send for IterMut<'_, T> {}
 
 impl<'a, T> IterMut<'a, T> {
-    /// View the underlying data as a subslice of the original data.
+    /// Views the underlying data as a subslice of the original data.
     ///
     /// To avoid creating `&mut` references that alias, this is forced
     /// to consume the iterator.
@@ -3195,6 +3217,16 @@ pub struct Split<'a, T:'a, P> where P: FnMut(&T) -> bool {
     v: &'a [T],
     pred: P,
     finished: bool
+}
+
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug, P> fmt::Debug for Split<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Split")
+            .field("v", &self.v)
+            .field("finished", &self.finished)
+            .finish()
+    }
 }
 
 // FIXME(#26925) Remove in favor of `#[derive(Clone)]`
@@ -3276,6 +3308,16 @@ pub struct SplitMut<'a, T:'a, P> where P: FnMut(&T) -> bool {
     v: &'a mut [T],
     pred: P,
     finished: bool
+}
+
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug, P> fmt::Debug for SplitMut<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SplitMut")
+            .field("v", &self.v)
+            .field("finished", &self.finished)
+            .finish()
+    }
 }
 
 impl<'a, T, P> SplitIter for SplitMut<'a, T, P> where P: FnMut(&T) -> bool {
@@ -3366,6 +3408,16 @@ pub struct RSplit<'a, T:'a, P> where P: FnMut(&T) -> bool {
 }
 
 #[stable(feature = "slice_rsplit", since = "1.27.0")]
+impl<T: fmt::Debug, P> fmt::Debug for RSplit<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RSplit")
+            .field("v", &self.inner.v)
+            .field("finished", &self.inner.finished)
+            .finish()
+    }
+}
+
+#[stable(feature = "slice_rsplit", since = "1.27.0")]
 impl<'a, T, P> Iterator for RSplit<'a, T, P> where P: FnMut(&T) -> bool {
     type Item = &'a [T];
 
@@ -3412,6 +3464,16 @@ pub struct RSplitMut<'a, T:'a, P> where P: FnMut(&T) -> bool {
 }
 
 #[stable(feature = "slice_rsplit", since = "1.27.0")]
+impl<T: fmt::Debug, P> fmt::Debug for RSplitMut<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RSplitMut")
+            .field("v", &self.inner.v)
+            .field("finished", &self.inner.finished)
+            .finish()
+    }
+}
+
+#[stable(feature = "slice_rsplit", since = "1.27.0")]
 impl<'a, T, P> SplitIter for RSplitMut<'a, T, P> where P: FnMut(&T) -> bool {
     #[inline]
     fn finish(&mut self) -> Option<&'a mut [T]> {
@@ -3450,6 +3512,7 @@ impl<T, P> FusedIterator for RSplitMut<'_, T, P> where P: FnMut(&T) -> bool {}
 /// An private iterator over subslices separated by elements that
 /// match a predicate function, splitting at most a fixed number of
 /// times.
+#[derive(Debug)]
 struct GenericSplitN<I> {
     iter: I,
     count: usize,
@@ -3486,6 +3549,15 @@ pub struct SplitN<'a, T: 'a, P> where P: FnMut(&T) -> bool {
     inner: GenericSplitN<Split<'a, T, P>>
 }
 
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug, P> fmt::Debug for SplitN<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SplitN")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
 /// An iterator over subslices separated by elements that match a
 /// predicate function, limited to a given number of splits, starting
 /// from the end of the slice.
@@ -3497,6 +3569,15 @@ pub struct SplitN<'a, T: 'a, P> where P: FnMut(&T) -> bool {
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct RSplitN<'a, T: 'a, P> where P: FnMut(&T) -> bool {
     inner: GenericSplitN<RSplit<'a, T, P>>
+}
+
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug, P> fmt::Debug for RSplitN<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RSplitN")
+            .field("inner", &self.inner)
+            .finish()
+    }
 }
 
 /// An iterator over subslices separated by elements that match a predicate
@@ -3511,6 +3592,15 @@ pub struct SplitNMut<'a, T: 'a, P> where P: FnMut(&T) -> bool {
     inner: GenericSplitN<SplitMut<'a, T, P>>
 }
 
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug, P> fmt::Debug for SplitNMut<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SplitNMut")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
 /// An iterator over subslices separated by elements that match a
 /// predicate function, limited to a given number of splits, starting
 /// from the end of the slice.
@@ -3522,6 +3612,15 @@ pub struct SplitNMut<'a, T: 'a, P> where P: FnMut(&T) -> bool {
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct RSplitNMut<'a, T: 'a, P> where P: FnMut(&T) -> bool {
     inner: GenericSplitN<RSplitMut<'a, T, P>>
+}
+
+#[stable(feature = "core_impl_debug", since = "1.9.0")]
+impl<T: fmt::Debug, P> fmt::Debug for RSplitNMut<'_, T, P> where P: FnMut(&T) -> bool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RSplitNMut")
+            .field("inner", &self.inner)
+            .finish()
+    }
 }
 
 macro_rules! forward_iterator {
@@ -3560,6 +3659,7 @@ forward_iterator! { RSplitNMut: T, &'a mut [T] }
 ///
 /// [`windows`]: ../../std/primitive.slice.html#method.windows
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct Windows<'a, T:'a> {
     v: &'a [T],
@@ -3664,6 +3764,7 @@ impl<T> FusedIterator for Windows<'_, T> {}
 ///
 /// [`chunks`]: ../../std/primitive.slice.html#method.chunks
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct Chunks<'a, T:'a> {
     v: &'a [T],
@@ -3777,6 +3878,7 @@ impl<T> FusedIterator for Chunks<'_, T> {}
 ///
 /// [`chunks_mut`]: ../../std/primitive.slice.html#method.chunks_mut
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct ChunksMut<'a, T:'a> {
     v: &'a mut [T],
@@ -3887,6 +3989,7 @@ impl<T> FusedIterator for ChunksMut<'_, T> {}
 /// [`chunks_exact`]: ../../std/primitive.slice.html#method.chunks_exact
 /// [`remainder`]: ../../std/slice/struct.ChunksExact.html#method.remainder
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "chunks_exact", since = "1.31.0")]
 pub struct ChunksExact<'a, T:'a> {
     v: &'a [T],
@@ -3895,7 +3998,7 @@ pub struct ChunksExact<'a, T:'a> {
 }
 
 impl<'a, T> ChunksExact<'a, T> {
-    /// Return the remainder of the original slice that is not going to be
+    /// Returns the remainder of the original slice that is not going to be
     /// returned by the iterator. The returned slice has at most `chunk_size-1`
     /// elements.
     #[stable(feature = "chunks_exact", since = "1.31.0")]
@@ -4000,6 +4103,7 @@ impl<T> FusedIterator for ChunksExact<'_, T> {}
 /// [`chunks_exact_mut`]: ../../std/primitive.slice.html#method.chunks_exact_mut
 /// [`into_remainder`]: ../../std/slice/struct.ChunksExactMut.html#method.into_remainder
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "chunks_exact", since = "1.31.0")]
 pub struct ChunksExactMut<'a, T:'a> {
     v: &'a mut [T],
@@ -4008,7 +4112,7 @@ pub struct ChunksExactMut<'a, T:'a> {
 }
 
 impl<'a, T> ChunksExactMut<'a, T> {
-    /// Return the remainder of the original slice that is not going to be
+    /// Returns the remainder of the original slice that is not going to be
     /// returned by the iterator. The returned slice has at most `chunk_size-1`
     /// elements.
     #[stable(feature = "chunks_exact", since = "1.31.0")]
@@ -4103,6 +4207,7 @@ impl<T> FusedIterator for ChunksExactMut<'_, T> {}
 ///
 /// [`rchunks`]: ../../std/primitive.slice.html#method.rchunks
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rchunks", since = "1.31.0")]
 pub struct RChunks<'a, T:'a> {
     v: &'a [T],
@@ -4219,6 +4324,7 @@ impl<'a, T> FusedIterator for RChunks<'a, T> {}
 ///
 /// [`rchunks_mut`]: ../../std/primitive.slice.html#method.rchunks_mut
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rchunks", since = "1.31.0")]
 pub struct RChunksMut<'a, T:'a> {
     v: &'a mut [T],
@@ -4331,6 +4437,7 @@ impl<'a, T> FusedIterator for RChunksMut<'a, T> {}
 /// [`rchunks_exact`]: ../../std/primitive.slice.html#method.rchunks_exact
 /// [`remainder`]: ../../std/slice/struct.ChunksExact.html#method.remainder
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rchunks", since = "1.31.0")]
 pub struct RChunksExact<'a, T:'a> {
     v: &'a [T],
@@ -4339,7 +4446,7 @@ pub struct RChunksExact<'a, T:'a> {
 }
 
 impl<'a, T> RChunksExact<'a, T> {
-    /// Return the remainder of the original slice that is not going to be
+    /// Returns the remainder of the original slice that is not going to be
     /// returned by the iterator. The returned slice has at most `chunk_size-1`
     /// elements.
     #[stable(feature = "rchunks", since = "1.31.0")]
@@ -4444,6 +4551,7 @@ impl<'a, T> FusedIterator for RChunksExact<'a, T> {}
 /// [`rchunks_exact_mut`]: ../../std/primitive.slice.html#method.rchunks_exact_mut
 /// [`into_remainder`]: ../../std/slice/struct.ChunksExactMut.html#method.into_remainder
 /// [slices]: ../../std/primitive.slice.html
+#[derive(Debug)]
 #[stable(feature = "rchunks", since = "1.31.0")]
 pub struct RChunksExactMut<'a, T:'a> {
     v: &'a mut [T],
@@ -4452,7 +4560,7 @@ pub struct RChunksExactMut<'a, T:'a> {
 }
 
 impl<'a, T> RChunksExactMut<'a, T> {
-    /// Return the remainder of the original slice that is not going to be
+    /// Returns the remainder of the original slice that is not going to be
     /// returned by the iterator. The returned slice has at most `chunk_size-1`
     /// elements.
     #[stable(feature = "rchunks", since = "1.31.0")]
