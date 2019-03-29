@@ -1031,7 +1031,7 @@ impl<T, E> Option<Result<T, E>> {
 #[inline(never)]
 #[cold]
 fn expect_failed(msg: &str) -> ! {
-    panic!("expect_failed")
+    panic!("{}", msg)
 }
 
 /////////////////////////////////////////////////////////////////////////////

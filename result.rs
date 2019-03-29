@@ -994,7 +994,7 @@ impl<T, E> Result<Option<T>, E> {
 #[inline(never)]
 #[cold]
 fn unwrap_failed<E: fmt::Debug>(msg: &str, error: E) -> ! {
-    panic!("unwrap_failed")
+    panic!("{}: {:?}", msg, error)
 }
 
 /////////////////////////////////////////////////////////////////////////////

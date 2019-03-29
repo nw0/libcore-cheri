@@ -3,6 +3,7 @@
 #![stable(feature = "alloc_module", since = "1.28.0")]
 
 use cmp;
+use fmt;
 use mem;
 use usize;
 use ptr::{self, NonNull};
@@ -31,7 +32,7 @@ fn size_align<T>() -> (usize, usize) {
 /// method must either ensure that conditions like this are met, or
 /// use specific allocators with looser requirements.)
 #[stable(feature = "alloc_layout", since = "1.28.0")]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[lang = "alloc_layout"]
 pub struct Layout {
     // size of the requested block of memory, measured in bytes.
@@ -328,9 +329,17 @@ impl Layout {
 /// or some other `Layout` constructor
 /// do not satisfy its documented constraints.
 #[stable(feature = "alloc_layout", since = "1.28.0")]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct LayoutErr {
     private: ()
+}
+
+// (we need this for downstream impl of trait Error)
+#[stable(feature = "alloc_layout", since = "1.28.0")]
+impl fmt::Display for LayoutErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("invalid parameters to Layout::from_size_align")
+    }
 }
 
 /// The `AllocErr` error indicates an allocation failure
@@ -338,20 +347,36 @@ pub struct LayoutErr {
 /// something wrong when combining the given input arguments with this
 /// allocator.
 #[unstable(feature = "allocator_api", issue = "32838")]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AllocErr;
+
+// (we need this for downstream impl of trait Error)
+#[unstable(feature = "allocator_api", issue = "32838")]
+impl fmt::Display for AllocErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("memory allocation failed")
+    }
+}
 
 /// The `CannotReallocInPlace` error is used when `grow_in_place` or
 /// `shrink_in_place` were unable to reuse the given memory block for
 /// a requested layout.
 #[unstable(feature = "allocator_api", issue = "32838")]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CannotReallocInPlace;
 
 #[unstable(feature = "allocator_api", issue = "32838")]
 impl CannotReallocInPlace {
     pub fn description(&self) -> &str {
         "cannot reallocate allocator's memory in place"
+    }
+}
+
+// (we need this for downstream impl of trait Error)
+#[unstable(feature = "allocator_api", issue = "32838")]
+impl fmt::Display for CannotReallocInPlace {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.description())
     }
 }
 

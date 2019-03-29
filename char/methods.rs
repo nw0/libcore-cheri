@@ -455,7 +455,10 @@ impl char {
                 *dst.get_unchecked_mut(3) = (code & 0x3F) as u8 | TAG_CONT;
                 4
             } else {
-                panic!("encode_utf8: need XX bytes to encode U+, but the buffer has ")
+                panic!("encode_utf8: need {} bytes to encode U+{:X}, but the buffer has {}",
+                    from_u32_unchecked(code).len_utf8(),
+                    code,
+                    dst.len())
             };
             from_utf8_unchecked_mut(dst.get_unchecked_mut(..len))
         }
@@ -511,7 +514,10 @@ impl char {
                 *dst.get_unchecked_mut(1) = 0xDC00 | ((code as u16) & 0x3FF);
                 slice::from_raw_parts_mut(dst.as_mut_ptr(), 2)
             } else {
-                panic!("encode_utf16: need XX units to encode U+, but the buffer has ")
+                panic!("encode_utf16: need {} units to encode U+{:X}, but the buffer has {}",
+                    from_u32_unchecked(code).len_utf16(),
+                    code,
+                    dst.len())
             }
         }
     }

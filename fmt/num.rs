@@ -113,7 +113,7 @@ macro_rules! radix {
             fn digit(x: u8) -> u8 {
                 match x {
                     $($x => $conv,)+
-                    x => panic!("number not in the range 0.."),
+                    x => panic!("number not in the range 0..={}: {}", Self::BASE - 1, x),
                 }
             }
         }

@@ -2410,13 +2410,13 @@ impl<T, I> ops::IndexMut<I> for [T]
 #[inline(never)]
 #[cold]
 fn slice_index_len_fail(index: usize, len: usize) -> ! {
-    panic!("index out of range for slice");
+    panic!("index {} out of range for slice of length {}", index, len);
 }
 
 #[inline(never)]
 #[cold]
 fn slice_index_order_fail(index: usize, end: usize) -> ! {
-    panic!("slice index order fail");
+    panic!("slice index starts at {} but ends at {}", index, end);
 }
 
 #[inline(never)]
