@@ -147,6 +147,7 @@ pub mod ffi;
 
 pub mod slice;
 pub mod str;
+pub mod hash;
 pub mod fmt;
 
 pub mod unicode;
