@@ -247,11 +247,11 @@ pub fn fp_to_float<T: RawFloat>(x: Fp) -> T {
     // x.f is 64 bit, so x.e has a mantissa shift of 63
     let e = x.e + 63;
     if e > T::MAX_EXP {
-        panic!("fp_to_float: exponent too large")
+        panic!("fp_to_float: exponent {} too large", e)
     }  else if e > T::MIN_EXP {
         encode_normal(round_normal::<T>(x))
     } else {
-        panic!("fp_to_float: exponent too small")
+        panic!("fp_to_float: exponent {} too small", e)
     }
 }
 

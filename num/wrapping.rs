@@ -1,13 +1,3 @@
-// Copyright 2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 use super::Wrapping;
 
 use ops::*;
@@ -439,7 +429,8 @@ assert_eq!(n.trailing_zeros(), 3);
             /// wrapping the truncated bits to the end of the resulting
             /// integer.
             ///
-            /// Please note this isn't the same operation as `>>`!
+            /// Please note this isn't the same operation as the `>>` shifting
+            /// operator!
             ///
             /// # Examples
             ///
@@ -464,7 +455,8 @@ assert_eq!(n.trailing_zeros(), 3);
             /// wrapping the truncated bits to the beginning of the resulting
             /// integer.
             ///
-            /// Please note this isn't the same operation as `<<`!
+            /// Please note this isn't the same operation as the `<<` shifting
+            /// operator!
             ///
             /// # Examples
             ///
@@ -916,8 +908,8 @@ mod shift_max {
 
     #[cfg(target_pointer_width = "128")]
     mod platform {
-        pub const usize: u32 = super::u128;
-        pub const isize: u32 = super::i128;
+        pub const usize: u32 = super::u64;
+        pub const isize: u32 = super::i64;
     }
 
     pub const i8: u32 = (1 << 3) - 1;
