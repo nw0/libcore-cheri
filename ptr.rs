@@ -64,6 +64,7 @@
 #![stable(feature = "rust1", since = "1.0.0")]
 
 use convert::From;
+use fmt;
 use intrinsics;
 use ops::{CoerceUnsized, DispatchFromDyn};
 use marker::{PhantomData, Unsize};
@@ -2532,6 +2533,20 @@ macro_rules! fnptr_impls_safety_abi {
             #[inline]
             fn cmp(&self, other: &Self) -> Ordering {
                 (*self as usize).cmp(&(*other as usize))
+            }
+        }
+
+        #[stable(feature = "fnptr_impls", since = "1.4.0")]
+        impl<Ret, $($Arg),*> fmt::Pointer for $FnTy {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt::Pointer::fmt(&(*self as *const ()), f)
+            }
+        }
+
+        #[stable(feature = "fnptr_impls", since = "1.4.0")]
+        impl<Ret, $($Arg),*> fmt::Debug for $FnTy {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt::Pointer::fmt(&(*self as *const ()), f)
             }
         }
     }

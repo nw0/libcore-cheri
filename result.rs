@@ -1,13 +1,3 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Error handling with the `Result` type.
 //!
 //! [`Result<T, E>`][`Result`] is the type used for returning and propagating
@@ -241,6 +231,7 @@
 #![stable(feature = "rust1", since = "1.0.0")]
 
 use fmt;
+use iter::{FromIterator, FusedIterator, TrustedLen};
 use ops::{self, Deref};
 
 /// `Result` is a type that represents either success ([`Ok`]) or failure ([`Err`]).
@@ -249,7 +240,7 @@ use ops::{self, Deref};
 ///
 /// [`Ok`]: enum.Result.html#variant.Ok
 /// [`Err`]: enum.Result.html#variant.Err
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
 #[must_use = "this `Result` may be an `Err` variant, which should be handled"]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub enum Result<T, E> {
@@ -378,7 +369,7 @@ impl<T, E> Result<T, E> {
     // Adapter for working with references
     /////////////////////////////////////////////////////////////////////////
 
-    /// Converts from `Result<T, E>` to `Result<&T, &E>`.
+    /// Converts from `&Result<T, E>` to `Result<&T, &E>`.
     ///
     /// Produces a new `Result`, containing a reference
     /// into the original, leaving the original in place.
@@ -403,7 +394,7 @@ impl<T, E> Result<T, E> {
         }
     }
 
-    /// Converts from `Result<T, E>` to `Result<&mut T, &mut E>`.
+    /// Converts from `&mut Result<T, E>` to `Result<&mut T, &mut E>`.
     ///
     /// # Examples
     ///
@@ -528,6 +519,56 @@ impl<T, E> Result<T, E> {
             Ok(t) => Ok(t),
             Err(e) => Err(op(e))
         }
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+    // Iterator constructors
+    /////////////////////////////////////////////////////////////////////////
+
+    /// Returns an iterator over the possibly contained value.
+    ///
+    /// The iterator yields one value if the result is [`Result::Ok`], otherwise none.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// let x: Result<u32, &str> = Ok(7);
+    /// assert_eq!(x.iter().next(), Some(&7));
+    ///
+    /// let x: Result<u32, &str> = Err("nothing!");
+    /// assert_eq!(x.iter().next(), None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn iter(&self) -> Iter<T> {
+        Iter { inner: self.as_ref().ok() }
+    }
+
+    /// Returns a mutable iterator over the possibly contained value.
+    ///
+    /// The iterator yields one value if the result is [`Result::Ok`], otherwise none.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// let mut x: Result<u32, &str> = Ok(7);
+    /// match x.iter_mut().next() {
+    ///     Some(v) => *v = 40,
+    ///     None => {},
+    /// }
+    /// assert_eq!(x, Ok(40));
+    ///
+    /// let mut x: Result<u32, &str> = Err("nothing!");
+    /// assert_eq!(x.iter_mut().next(), None);
+    /// ```
+    #[inline]
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn iter_mut(&mut self) -> IterMut<T> {
+        IterMut { inner: self.as_mut().ok() }
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -725,7 +766,7 @@ impl<T, E> Result<T, E> {
     }
 }
 
-impl<T, E> Result<T, E> {
+impl<T, E: fmt::Debug> Result<T, E> {
     /// Unwraps a result, yielding the content of an [`Ok`].
     ///
     /// # Panics
@@ -855,7 +896,7 @@ impl<T: Default, E> Result<T, E> {
     ///
     /// # Examples
     ///
-    /// Convert a string to an integer, turning poorly-formed strings
+    /// Converts a string to an integer, turning poorly-formed strings
     /// into 0 (the default value for integers). [`parse`] converts
     /// a string to any other type that implements [`FromStr`], returning an
     /// [`Err`] on error.
@@ -931,8 +972,6 @@ impl<T, E> Result<Option<T>, E> {
     /// # Examples
     ///
     /// ```
-    /// #![feature(transpose_result)]
-    ///
     /// #[derive(Debug, Eq, PartialEq)]
     /// struct SomeErr;
     ///
@@ -941,7 +980,7 @@ impl<T, E> Result<Option<T>, E> {
     /// assert_eq!(x.transpose(), y);
     /// ```
     #[inline]
-    #[unstable(feature = "transpose_result", issue = "47338")]
+    #[stable(feature = "transpose_result", since = "1.33.0")]
     pub fn transpose(self) -> Option<Result<T, E>> {
         match self {
             Ok(Some(x)) => Some(Ok(x)),
@@ -954,13 +993,255 @@ impl<T, E> Result<Option<T>, E> {
 // This is a separate function to reduce the code size of the methods
 #[inline(never)]
 #[cold]
-fn unwrap_failed<E>(_msg: &str, _error: E) -> ! {
-    panic!("unwrap_failed (result.rs)");
+fn unwrap_failed<E: fmt::Debug>(msg: &str, error: E) -> ! {
+    panic!("unwrap_failed")
 }
 
 /////////////////////////////////////////////////////////////////////////////
 // Trait implementations
 /////////////////////////////////////////////////////////////////////////////
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T, E> IntoIterator for Result<T, E> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    /// Returns a consuming iterator over the possibly contained value.
+    ///
+    /// The iterator yields one value if the result is [`Result::Ok`], otherwise none.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// let x: Result<u32, &str> = Ok(5);
+    /// let v: Vec<u32> = x.into_iter().collect();
+    /// assert_eq!(v, [5]);
+    ///
+    /// let x: Result<u32, &str> = Err("nothing!");
+    /// let v: Vec<u32> = x.into_iter().collect();
+    /// assert_eq!(v, []);
+    /// ```
+    #[inline]
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter { inner: self.ok() }
+    }
+}
+
+#[stable(since = "1.4.0", feature = "result_iter")]
+impl<'a, T, E> IntoIterator for &'a Result<T, E> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Iter<'a, T> {
+        self.iter()
+    }
+}
+
+#[stable(since = "1.4.0", feature = "result_iter")]
+impl<'a, T, E> IntoIterator for &'a mut Result<T, E> {
+    type Item = &'a mut T;
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> IterMut<'a, T> {
+        self.iter_mut()
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// The Result Iterators
+/////////////////////////////////////////////////////////////////////////////
+
+/// An iterator over a reference to the [`Ok`] variant of a [`Result`].
+///
+/// The iterator yields one value if the result is [`Ok`], otherwise none.
+///
+/// Created by [`Result::iter`].
+///
+/// [`Ok`]: enum.Result.html#variant.Ok
+/// [`Result`]: enum.Result.html
+/// [`Result::iter`]: enum.Result.html#method.iter
+#[derive(Debug)]
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct Iter<'a, T: 'a> { inner: Option<&'a T> }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a T> { self.inner.take() }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = if self.inner.is_some() {1} else {0};
+        (n, Some(n))
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
+    #[inline]
+    fn next_back(&mut self) -> Option<&'a T> { self.inner.take() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> ExactSizeIterator for Iter<'_, T> {}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl<T> FusedIterator for Iter<'_, T> {}
+
+#[unstable(feature = "trusted_len", issue = "37572")]
+unsafe impl<A> TrustedLen for Iter<'_, A> {}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> Clone for Iter<'_, T> {
+    #[inline]
+    fn clone(&self) -> Self { Iter { inner: self.inner } }
+}
+
+/// An iterator over a mutable reference to the [`Ok`] variant of a [`Result`].
+///
+/// Created by [`Result::iter_mut`].
+///
+/// [`Ok`]: enum.Result.html#variant.Ok
+/// [`Result`]: enum.Result.html
+/// [`Result::iter_mut`]: enum.Result.html#method.iter_mut
+#[derive(Debug)]
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct IterMut<'a, T: 'a> { inner: Option<&'a mut T> }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a mut T> { self.inner.take() }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = if self.inner.is_some() {1} else {0};
+        (n, Some(n))
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
+    #[inline]
+    fn next_back(&mut self) -> Option<&'a mut T> { self.inner.take() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> ExactSizeIterator for IterMut<'_, T> {}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl<T> FusedIterator for IterMut<'_, T> {}
+
+#[unstable(feature = "trusted_len", issue = "37572")]
+unsafe impl<A> TrustedLen for IterMut<'_, A> {}
+
+/// An iterator over the value in a [`Ok`] variant of a [`Result`].
+///
+/// The iterator yields one value if the result is [`Ok`], otherwise none.
+///
+/// This struct is created by the [`into_iter`] method on
+/// [`Result`][`Result`] (provided by the [`IntoIterator`] trait).
+///
+/// [`Ok`]: enum.Result.html#variant.Ok
+/// [`Result`]: enum.Result.html
+/// [`into_iter`]: ../iter/trait.IntoIterator.html#tymethod.into_iter
+/// [`IntoIterator`]: ../iter/trait.IntoIterator.html
+#[derive(Clone, Debug)]
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct IntoIter<T> { inner: Option<T> }
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+
+    #[inline]
+    fn next(&mut self) -> Option<T> { self.inner.take() }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = if self.inner.is_some() {1} else {0};
+        (n, Some(n))
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> DoubleEndedIterator for IntoIter<T> {
+    #[inline]
+    fn next_back(&mut self) -> Option<T> { self.inner.take() }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<T> ExactSizeIterator for IntoIter<T> {}
+
+#[stable(feature = "fused", since = "1.26.0")]
+impl<T> FusedIterator for IntoIter<T> {}
+
+#[unstable(feature = "trusted_len", issue = "37572")]
+unsafe impl<A> TrustedLen for IntoIter<A> {}
+
+/////////////////////////////////////////////////////////////////////////////
+// FromIterator
+/////////////////////////////////////////////////////////////////////////////
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A, E, V: FromIterator<A>> FromIterator<Result<A, E>> for Result<V, E> {
+    /// Takes each element in the `Iterator`: if it is an `Err`, no further
+    /// elements are taken, and the `Err` is returned. Should no `Err` occur, a
+    /// container with the values of each `Result` is returned.
+    ///
+    /// Here is an example which increments every integer in a vector,
+    /// checking for overflow:
+    ///
+    /// ```
+    /// let v = vec![1, 2];
+    /// let res: Result<Vec<u32>, &'static str> = v.iter().map(|x: &u32|
+    ///     x.checked_add(1).ok_or("Overflow!")
+    /// ).collect();
+    /// assert_eq!(res, Ok(vec![2, 3]));
+    /// ```
+    #[inline]
+    fn from_iter<I: IntoIterator<Item=Result<A, E>>>(iter: I) -> Result<V, E> {
+        // FIXME(#11084): This could be replaced with Iterator::scan when this
+        // performance bug is closed.
+
+        struct Adapter<Iter, E> {
+            iter: Iter,
+            err: Option<E>,
+        }
+
+        impl<T, E, Iter: Iterator<Item=Result<T, E>>> Iterator for Adapter<Iter, E> {
+            type Item = T;
+
+            #[inline]
+            fn next(&mut self) -> Option<T> {
+                match self.iter.next() {
+                    Some(Ok(value)) => Some(value),
+                    Some(Err(err)) => {
+                        self.err = Some(err);
+                        None
+                    }
+                    None => None,
+                }
+            }
+
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                let (_min, max) = self.iter.size_hint();
+                (0, max)
+            }
+        }
+
+        let mut adapter = Adapter { iter: iter.into_iter(), err: None };
+        let v: V = FromIterator::from_iter(adapter.by_ref());
+
+        match adapter.err {
+            Some(err) => Err(err),
+            None => Ok(v),
+        }
+    }
+}
 
 #[unstable(feature = "try_trait", issue = "42327")]
 impl<T,E> ops::Try for Result<T, E> {

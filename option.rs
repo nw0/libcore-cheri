@@ -1,13 +1,3 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Optional values.
 //!
 //! Type [`Option`] represents an optional value: every [`Option`]
@@ -154,7 +144,7 @@ use {hint, mem, ops::{self, Deref}};
 // which basically means it must be `Option`.
 
 /// The `Option` type. See [the module level documentation](index.html) for more.
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub enum Option<T> {
     /// No value
@@ -219,11 +209,11 @@ impl<T> Option<T> {
     // Adapter for working with references
     /////////////////////////////////////////////////////////////////////////
 
-    /// Converts from `Option<T>` to `Option<&T>`.
+    /// Converts from `&Option<T>` to `Option<&T>`.
     ///
     /// # Examples
     ///
-    /// Convert an `Option<`[`String`]`>` into an `Option<`[`usize`]`>`, preserving the original.
+    /// Converts an `Option<`[`String`]`>` into an `Option<`[`usize`]`>`, preserving the original.
     /// The [`map`] method takes the `self` argument by value, consuming the original,
     /// so this technique uses `as_ref` to first take an `Option` to a reference
     /// to the value inside the original.
@@ -248,7 +238,7 @@ impl<T> Option<T> {
         }
     }
 
-    /// Converts from `Option<T>` to `Option<&mut T>`.
+    /// Converts from `&mut Option<T>` to `Option<&mut T>`.
     ///
     /// # Examples
     ///
@@ -386,7 +376,7 @@ impl<T> Option<T> {
     ///
     /// # Examples
     ///
-    /// Convert an `Option<`[`String`]`>` into an `Option<`[`usize`]`>`, consuming the original:
+    /// Converts an `Option<`[`String`]`>` into an `Option<`[`usize`]`>`, consuming the original:
     ///
     /// [`String`]: ../../std/string/struct.String.html
     /// [`usize`]: ../../std/primitive.usize.html
@@ -865,7 +855,45 @@ impl<T> Option<T> {
     }
 }
 
-impl<'a, T: Clone> Option<&'a T> {
+impl<T: Copy> Option<&T> {
+    /// Maps an `Option<&T>` to an `Option<T>` by copying the contents of the
+    /// option.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let x = 12;
+    /// let opt_x = Some(&x);
+    /// assert_eq!(opt_x, Some(&12));
+    /// let copied = opt_x.copied();
+    /// assert_eq!(copied, Some(12));
+    /// ```
+    #[stable(feature = "copied", since = "1.35.0")]
+    pub fn copied(self) -> Option<T> {
+        self.map(|&t| t)
+    }
+}
+
+impl<T: Copy> Option<&mut T> {
+    /// Maps an `Option<&mut T>` to an `Option<T>` by copying the contents of the
+    /// option.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut x = 12;
+    /// let opt_x = Some(&mut x);
+    /// assert_eq!(opt_x, Some(&mut 12));
+    /// let copied = opt_x.copied();
+    /// assert_eq!(copied, Some(12));
+    /// ```
+    #[stable(feature = "copied", since = "1.35.0")]
+    pub fn copied(self) -> Option<T> {
+        self.map(|&mut t| t)
+    }
+}
+
+impl<T: Clone> Option<&T> {
     /// Maps an `Option<&T>` to an `Option<T>` by cloning the contents of the
     /// option.
     ///
@@ -884,7 +912,7 @@ impl<'a, T: Clone> Option<&'a T> {
     }
 }
 
-impl<'a, T: Clone> Option<&'a mut T> {
+impl<T: Clone> Option<&mut T> {
     /// Maps an `Option<&mut T>` to an `Option<T>` by cloning the contents of the
     /// option.
     ///
@@ -912,7 +940,7 @@ impl<T: Default> Option<T> {
     ///
     /// # Examples
     ///
-    /// Convert a string to an integer, turning poorly-formed strings
+    /// Converts a string to an integer, turning poorly-formed strings
     /// into 0 (the default value for integers). [`parse`] converts
     /// a string to any other type that implements [`FromStr`], returning
     /// [`None`] on error.
@@ -962,9 +990,7 @@ impl<T, E> Option<Result<T, E>> {
     /// # Examples
     ///
     /// ```
-    /// #![feature(transpose_result)]
-    ///
-    /// #[derive(Eq, PartialEq)]
+    /// #[derive(Debug, Eq, PartialEq)]
     /// struct SomeErr;
     ///
     /// let x: Result<Option<i32>, SomeErr> = Ok(Some(5));
@@ -972,7 +998,7 @@ impl<T, E> Option<Result<T, E>> {
     /// assert_eq!(x, y.transpose());
     /// ```
     #[inline]
-    #[unstable(feature = "transpose_result", issue = "47338")]
+    #[stable(feature = "transpose_result", since = "1.33.0")]
     pub fn transpose(self) -> Result<Option<T>, E> {
         match self {
             Some(Ok(x)) => Ok(Some(x)),
@@ -985,8 +1011,8 @@ impl<T, E> Option<Result<T, E>> {
 // This is a separate function to reduce the code size of .expect() itself.
 #[inline(never)]
 #[cold]
-fn expect_failed(_msg: &str) -> ! {
-    panic!("expect_failed (option.rs)");
+fn expect_failed(msg: &str) -> ! {
+    panic!("expect_failed")
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1069,7 +1095,7 @@ impl<'a, T> From<&'a mut Option<T>> for Option<&'a mut T> {
 // The Option Iterators
 /////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Item<A> {
     opt: Option<A>
 }
@@ -1112,6 +1138,7 @@ unsafe impl<A> TrustedLen for Item<A> {}
 /// [`Some`]: enum.Option.html#variant.Some
 /// [`Option::iter`]: enum.Option.html#method.iter
 #[stable(feature = "rust1", since = "1.0.0")]
+#[derive(Debug)]
 pub struct Iter<'a, A: 'a> { inner: Item<&'a A> }
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -1157,6 +1184,7 @@ impl<A> Clone for Iter<'_, A> {
 /// [`Some`]: enum.Option.html#variant.Some
 /// [`Option::iter_mut`]: enum.Option.html#method.iter_mut
 #[stable(feature = "rust1", since = "1.0.0")]
+#[derive(Debug)]
 pub struct IterMut<'a, A: 'a> { inner: Item<&'a mut A> }
 
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -1192,7 +1220,7 @@ unsafe impl<A> TrustedLen for IterMut<'_, A> {}
 /// [`Option`]: enum.Option.html
 /// [`Some`]: enum.Option.html#variant.Some
 /// [`Option::into_iter`]: enum.Option.html#method.into_iter
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub struct IntoIter<A> { inner: Item<A> }
 
@@ -1235,7 +1263,7 @@ impl<A, V: FromIterator<A>> FromIterator<Option<A>> for Option<V> {
     /// # Examples
     ///
     /// Here is an example which increments every integer in a vector.
-    /// `We use the checked variant of `add` that returns `None` when the
+    /// We use the checked variant of `add` that returns `None` when the
     /// calculation would result in an overflow.
     ///
     /// ```
@@ -1321,7 +1349,7 @@ impl<A, V: FromIterator<A>> FromIterator<Option<A>> for Option<V> {
 /// implement `impl From<NoneError>` for `YourErrorType`. In that case, `x?` within a function that
 /// returns `Result<_, YourErrorType>` will translate a `None` value into an `Err` result.
 #[unstable(feature = "try_trait", issue = "42327")]
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
 pub struct NoneError;
 
 #[unstable(feature = "try_trait", issue = "42327")]
