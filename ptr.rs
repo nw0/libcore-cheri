@@ -1,13 +1,3 @@
-// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT
-// file at the top-level directory of this distribution and at
-// http://rust-lang.org/COPYRIGHT.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
 //! Manually manage memory through raw pointers.
 //!
 //! *[See also the pointer primitive types](../../std/primitive.pointer.html).*
@@ -22,7 +12,7 @@
 //! to access only a single value, in which case the documentation omits the size
 //! and implicitly assumes it to be `size_of::<T>()` bytes.
 //!
-//! The precise rules for validity are not determined yet.  The guarantees that are
+//! The precise rules for validity are not determined yet. The guarantees that are
 //! provided at this point are very minimal:
 //!
 //! * A [null] pointer is *never* valid, not even for accesses of [size zero][zst].
@@ -113,7 +103,7 @@ pub use intrinsics::write_bytes;
 ///
 /// * `to_drop` must be [valid] for reads.
 ///
-/// * `to_drop` must be properly aligned.  See the example below for how to drop
+/// * `to_drop` must be properly aligned. See the example below for how to drop
 ///   an unaligned pointer.
 ///
 /// Additionally, if `T` is not [`Copy`], using the pointed-to value after
@@ -144,7 +134,7 @@ pub use intrinsics::write_bytes;
 /// unsafe {
 ///     // Get a raw pointer to the last element in `v`.
 ///     let ptr = &mut v[1] as *mut _;
-///     // Shorten `v` to prevent the last item from being dropped.  We do that first,
+///     // Shorten `v` to prevent the last item from being dropped. We do that first,
 ///     // to prevent issues if the `drop_in_place` below panics.
 ///     v.set_len(1);
 ///     // Without a call `drop_in_place`, the last item would never be dropped,
@@ -582,7 +572,7 @@ pub unsafe fn replace<T>(dst: *mut T, mut src: T) -> T {
 pub unsafe fn read<T>(src: *const T) -> T {
     let mut tmp = MaybeUninit::<T>::uninitialized();
     copy_nonoverlapping(src, tmp.as_mut_ptr(), 1);
-    tmp.into_inner()
+    tmp.into_initialized()
 }
 
 /// Reads the value from `src` without moving it. This leaves the
@@ -597,10 +587,10 @@ pub unsafe fn read<T>(src: *const T) -> T {
 /// * `src` must be [valid] for reads.
 ///
 /// Like [`read`], `read_unaligned` creates a bitwise copy of `T`, regardless of
-/// whether `T` is [`Copy`].  If `T` is not [`Copy`], using both the returned
+/// whether `T` is [`Copy`]. If `T` is not [`Copy`], using both the returned
 /// value and the value at `*src` can [violate memory safety][read-ownership].
 ///
-/// Note that even if `T` has size `0`, the pointer must be non-NULL and properly aligned.
+/// Note that even if `T` has size `0`, the pointer must be non-NULL.
 ///
 /// [`Copy`]: ../marker/trait.Copy.html
 /// [`read`]: ./fn.read.html
@@ -651,7 +641,7 @@ pub unsafe fn read_unaligned<T>(src: *const T) -> T {
     copy_nonoverlapping(src as *const u8,
                         tmp.as_mut_ptr() as *mut u8,
                         mem::size_of::<T>());
-    tmp.into_inner()
+    tmp.into_initialized()
 }
 
 /// Overwrites a memory location with the given value without reading or
@@ -768,7 +758,7 @@ pub unsafe fn write<T>(dst: *mut T, src: T) {
 ///
 /// * `dst` must be [valid] for writes.
 ///
-/// Note that even if `T` has size `0`, the pointer must be non-NULL and properly aligned.
+/// Note that even if `T` has size `0`, the pointer must be non-NULL.
 ///
 /// [valid]: ../ptr/index.html#safety
 ///
@@ -834,7 +824,7 @@ pub unsafe fn write_unaligned<T>(dst: *mut T, src: T) {
 ///
 /// The compiler shouldn't change the relative order or number of volatile
 /// memory operations. However, volatile memory operations on zero-sized types
-/// (e.g., if a zero-sized type is passed to `read_volatile`) are no-ops
+/// (e.g., if a zero-sized type is passed to `read_volatile`) are noops
 /// and may be ignored.
 ///
 /// [c11]: http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf
@@ -848,7 +838,7 @@ pub unsafe fn write_unaligned<T>(dst: *mut T, src: T) {
 /// * `src` must be properly aligned.
 ///
 /// Like [`read`], `read_unaligned` creates a bitwise copy of `T`, regardless of
-/// whether `T` is [`Copy`].  If `T` is not [`Copy`], using both the returned
+/// whether `T` is [`Copy`]. If `T` is not [`Copy`], using both the returned
 /// value and the value at `*src` can [violate memory safety][read-ownership].
 /// However, storing non-[`Copy`] types in volatile memory is almost certainly
 /// incorrect.
@@ -858,6 +848,7 @@ pub unsafe fn write_unaligned<T>(dst: *mut T, src: T) {
 /// [valid]: ../ptr/index.html#safety
 /// [`Copy`]: ../marker/trait.Copy.html
 /// [`read`]: ./fn.read.html
+/// [read-ownership]: ./fn.read.html#ownership-of-the-returned-value
 ///
 /// Just like in C, whether an operation is volatile has no bearing whatsoever
 /// on questions involving concurrent access from multiple threads. Volatile
@@ -911,7 +902,7 @@ pub unsafe fn read_volatile<T>(src: *const T) -> T {
 ///
 /// The compiler shouldn't change the relative order or number of volatile
 /// memory operations. However, volatile memory operations on zero-sized types
-/// (e.g., if a zero-sized type is passed to `write_volatile`) are no-ops
+/// (e.g., if a zero-sized type is passed to `write_volatile`) are noops
 /// and may be ignored.
 ///
 /// [c11]: http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf
@@ -1101,7 +1092,7 @@ impl<T: ?Sized> *const T {
     /// unless `x` and `y` point into the same allocated object.
     ///
     /// Always use `.offset(count)` instead when possible, because `offset`
-    /// allows the compiler to optimize better.  If you need to cross object
+    /// allows the compiler to optimize better. If you need to cross object
     /// boundaries, cast the pointer to an integer and do the arithmetic there.
     ///
     /// # Examples
@@ -1720,7 +1711,7 @@ impl<T: ?Sized> *mut T {
     /// unless `x` and `y` point into the same allocated object.
     ///
     /// Always use `.offset(count)` instead when possible, because `offset`
-    /// allows the compiler to optimize better.  If you need to cross object
+    /// allows the compiler to optimize better. If you need to cross object
     /// boundaries, cast the pointer to an integer and do the arithmetic there.
     ///
     /// # Examples
@@ -2481,7 +2472,7 @@ impl<T: ?Sized> PartialEq for *mut T {
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized> Eq for *mut T {}
 
-/// Compare raw pointers for equality.
+/// Compares raw pointers for equality.
 ///
 /// This is the same as using the `==` operator, but less generic:
 /// the arguments have to be `*const T` raw pointers,

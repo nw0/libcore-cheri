@@ -71,6 +71,7 @@
 // #![feature(reverse_bits)]
 #![feature(non_exhaustive)]
 #![feature(structural_match)]
+#![feature(maybe_uninit, maybe_uninit_slice, maybe_uninit_array)]
 
 #![allow(unused_variables)]
 #![allow(dead_code)]
