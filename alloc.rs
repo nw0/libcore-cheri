@@ -12,6 +12,7 @@ use num::NonZeroUsize;
 /// Represents the combination of a starting address and
 /// a total capacity of the returned block.
 #[unstable(feature = "allocator_api", issue = "32838")]
+#[derive(Debug)]
 pub struct Excess(pub NonNull<u8>, pub usize);
 
 fn size_align<T>() -> (usize, usize) {

@@ -1991,28 +1991,7 @@ impl Display for char {
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized> Pointer for *const T {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let old_width = f.width;
-        let old_flags = f.flags;
-
-        // The alternate flag is already treated by LowerHex as being special-
-        // it denotes whether to prefix with 0x. We use it to work out whether
-        // or not to zero extend, and then unconditionally set it to get the
-        // prefix.
-        if f.alternate() {
-            f.flags |= 1 << (FlagV1::SignAwareZeroPad as u32);
-
-            if let None = f.width {
-                f.width = Some(((mem::size_of::<usize>() * 8) / 4) + 2);
-            }
-        }
-        f.flags |= 1 << (FlagV1::Alternate as u32);
-
-        let ret = LowerHex::fmt(&(*self as *const () as usize), f);
-
-        f.width = old_width;
-        f.flags = old_flags;
-
-        ret
+        f.pad("0xptr")
     }
 }
 
