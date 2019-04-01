@@ -74,7 +74,7 @@
 
 #[prelude_import]
 #[allow(unused)]
-use prelude::*;
+use prelude::v1::*;
 
 #[macro_use]
 mod macros;
