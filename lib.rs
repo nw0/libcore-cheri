@@ -148,6 +148,9 @@ pub mod time;
 
 pub mod unicode;
 
+/* Async */
+pub mod task;
+
 /* Heap memory allocator trait */
 #[allow(missing_docs)]
 pub mod alloc;
