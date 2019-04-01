@@ -149,6 +149,7 @@ pub mod time;
 pub mod unicode;
 
 /* Async */
+pub mod future;
 pub mod task;
 
 /* Heap memory allocator trait */
