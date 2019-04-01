@@ -59,12 +59,8 @@
 #![feature(mips_target_feature)]
 #![feature(aarch64_target_feature)]
 #![feature(wasm_target_feature)]
-// #![feature(const_slice_len)]
-// #![feature(const_str_as_bytes)]
-// #![feature(const_str_len)]
 #![feature(const_int_conversion)]
 #![feature(const_transmute)]
-// #![feature(reverse_bits)]
 #![feature(non_exhaustive)]
 #![feature(structural_match)]
 #![feature(maybe_uninit, maybe_uninit_slice, maybe_uninit_array)]
@@ -156,6 +152,5 @@ pub mod unicode;
 #[allow(missing_docs)]
 pub mod alloc;
 
-mod nonzero;
 mod tuple;
 mod unit;
