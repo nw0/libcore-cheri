@@ -908,8 +908,8 @@ mod shift_max {
 
     #[cfg(target_pointer_width = "128")]
     mod platform {
-        pub const usize: u32 = super::u64;
-        pub const isize: u32 = super::i64;
+        pub const usize: u32 = super::u128;
+        pub const isize: u32 = super::i128;
     }
 
     pub const i8: u32 = (1 << 3) - 1;

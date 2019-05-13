@@ -4382,6 +4382,19 @@ pub enum FpCategory {
     Normal,
 }
 
+macro_rules! from_str_radix_int_impl {
+    ($($t:ty)*) => {$(
+        #[stable(feature = "rust1", since = "1.0.0")]
+        impl FromStr for $t {
+            type Err = ParseIntError;
+            fn from_str(src: &str) -> Result<Self, ParseIntError> {
+                from_str_radix(src, 10)
+            }
+        }
+    )*}
+}
+from_str_radix_int_impl! { isize i8 i16 i32 i64 i128 usize u8 u16 u32 u64 u128 }
+
 /// The error type returned when a checked integral type conversion fails.
 #[stable(feature = "try_from", since = "1.34.0")]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -4687,6 +4700,39 @@ fn from_str_radix<T: FromStrRadixHelper>(src: &str, radix: u32) -> Result<T, Par
     }
 
     let mut result = T::from_u32(0);
+    if is_positive {
+        // The number is positive
+        for &c in digits {
+            let x = match (c as char).to_digit(radix) {
+                Some(x) => x,
+                None => return Err(PIE { kind: InvalidDigit }),
+            };
+            result = match result.checked_mul(radix) {
+                Some(result) => result,
+                None => return Err(PIE { kind: Overflow }),
+            };
+            result = match result.checked_add(x) {
+                Some(result) => result,
+                None => return Err(PIE { kind: Overflow }),
+            };
+        }
+    } else {
+        // The number is negative
+        for &c in digits {
+            let x = match (c as char).to_digit(radix) {
+                Some(x) => x,
+                None => return Err(PIE { kind: InvalidDigit }),
+            };
+            result = match result.checked_mul(radix) {
+                Some(result) => result,
+                None => return Err(PIE { kind: Underflow }),
+            };
+            result = match result.checked_sub(x) {
+                Some(result) => result,
+                None => return Err(PIE { kind: Underflow }),
+            };
+        }
+    }
     Ok(result)
 }
 

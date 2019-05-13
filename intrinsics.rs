@@ -962,6 +962,7 @@ extern "rust-intrinsic" {
     /// value is not necessarily valid to be used to actually access memory.
     pub fn arith_offset<T>(dst: *const T, offset: isize) -> *const T;
 
+    #[cfg(not(stage0))]
     pub fn ptr_diff<T>(lhs: *const T, rhs: *const T) -> usize;
 
     /// Equivalent to the appropriate `llvm.memcpy.p0i8.0i8.*` intrinsic, with

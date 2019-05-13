@@ -1008,10 +1008,24 @@ pub fn write(output: &mut dyn Write, args: Arguments) -> Result {
 
     let mut idx = 0;
 
-    for (arg, piece) in args.args.iter().zip(args.pieces.iter()) {
-        formatter.buf.write_str(*piece)?;
-        (arg.formatter)(arg.value, &mut formatter)?;
-        idx += 1;
+    match args.fmt {
+        None => {
+            // We can use default formatting parameters for all arguments.
+            for (arg, piece) in args.args.iter().zip(args.pieces.iter()) {
+                formatter.buf.write_str(*piece)?;
+                (arg.formatter)(arg.value, &mut formatter)?;
+                idx += 1;
+            }
+        }
+        Some(fmt) => {
+            // Every spec has a corresponding argument that is preceded by
+            // a string piece.
+            for (arg, piece) in fmt.iter().zip(args.pieces.iter()) {
+                formatter.buf.write_str(*piece)?;
+                formatter.run(arg)?;
+                idx += 1;
+            }
+        }
     }
 
     // There can be only one trailing string piece left.
@@ -1991,7 +2005,28 @@ impl Display for char {
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized> Pointer for *const T {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        f.pad("0xptr")
+        let old_width = f.width;
+        let old_flags = f.flags;
+
+        // The alternate flag is already treated by LowerHex as being special-
+        // it denotes whether to prefix with 0x. We use it to work out whether
+        // or not to zero extend, and then unconditionally set it to get the
+        // prefix.
+        if f.alternate() {
+            f.flags |= 1 << (FlagV1::SignAwareZeroPad as u32);
+
+            if let None = f.width {
+                f.width = Some(((mem::size_of::<usize>() * 8) / 4) + 2);
+            }
+        }
+        f.flags |= 1 << (FlagV1::Alternate as u32);
+
+        let ret = LowerHex::fmt(&(*self as *const () as usize), f);
+
+        f.width = old_width;
+        f.flags = old_flags;
+
+        ret
     }
 }
 
