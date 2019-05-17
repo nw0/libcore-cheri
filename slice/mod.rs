@@ -23,7 +23,7 @@
 use cmp::Ordering::{self, Less, Equal, Greater};
 use cmp;
 use fmt;
-use intrinsics::{assume, ptr_diff};
+use intrinsics::assume;
 use isize;
 use iter::*;
 use ops::{FnMut, Try, self};
@@ -2843,7 +2843,15 @@ macro_rules! is_empty {
 // unexpected way. (Tested by `codegen/slice-position-bounds-check`.)
 macro_rules! len {
     ($self: ident) => {{
-        ptr_diff($self.end, $self.ptr)
+        let start = $self.ptr;
+        let diff = ($self.end as usize).wrapping_sub(start as usize);
+        let size = size_from_ptr(start);
+        if size == 0 {
+            diff
+        } else {
+            // Using division instead of `offset_from` helps LLVM remove bounds checks
+            diff / size
+        }
     }}
 }
 
@@ -2898,7 +2906,7 @@ macro_rules! iterator {
         impl<T> ExactSizeIterator for $name<'_, T> {
             #[inline(always)]
             fn len(&self) -> usize {
-                unsafe { len!(self) }
+                len!(self)
             }
 
             #[inline(always)]
@@ -2929,18 +2937,18 @@ macro_rules! iterator {
 
             #[inline]
             fn size_hint(&self) -> (usize, Option<usize>) {
-                let exact = unsafe { len!(self) };
+                let exact = len!(self);
                 (exact, Some(exact))
             }
 
             #[inline]
             fn count(self) -> usize {
-                unsafe { len!(self) }
+                len!(self)
             }
 
             #[inline]
             fn nth(&mut self, n: usize) -> Option<$elem> {
-                if n >= unsafe { len!(self) } {
+                if n >= len!(self) {
                     // This iterator is now empty.
                     if mem::size_of::<T>() == 0 {
                         // We have to do it this way as `ptr` may never be 0, but `end`
@@ -3004,7 +3012,7 @@ macro_rules! iterator {
                 P: FnMut(Self::Item) -> bool,
             {
                 // The addition might panic on overflow.
-                let n = unsafe { len!(self) };
+                let n = len!(self);
                 self.try_fold(0, move |i, x| {
                     if predicate(x) { Err(i) }
                     else { Ok(i + 1) }
@@ -3021,7 +3029,7 @@ macro_rules! iterator {
                 Self: Sized + ExactSizeIterator + DoubleEndedIterator
             {
                 // No need for an overflow check here, because `ExactSizeIterator`
-                let n = unsafe { len!(self) };
+                let n = len!(self);
                 self.try_rfold(n, move |i, x| {
                     let i = i - 1;
                     if predicate(x) { Err(i) }
